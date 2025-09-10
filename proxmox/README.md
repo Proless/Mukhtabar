@@ -190,6 +190,8 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    source /etc/network/interfaces.d/*
    ```
 
+   > 💡 Make a note of your network interface name (e.g., 'enp1s0'). This name may vary depending on your hardware and installation.
+
 3. Replace the content with the following configuration to add two more interfaces for the OPNsense VM. You can set `vmbr0` to use DHCP for portability, allowing "plug and play" in any network with a properly configured router.
 
    ```bash
