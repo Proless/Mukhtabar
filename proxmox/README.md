@@ -1,18 +1,16 @@
-[[_TOC_]]
+# Proxmox
 
-## Proxmox
-
-### Introduction
+## Introduction
 
 Proxmox Virtual Environment (Proxmox VE) is an open-source virtualization platform that enables you to run and manage multiple virtual machines and containers on a single physical server. In this Mukhtabar environment, Proxmox serves as the central hypervisor, allowing efficient resource allocation, isolation, and management of various services and operating systems. With Proxmox, you can easily deploy, monitor, and maintain virtualized infrastructure components such as firewalls, storage solutions, and application servers, making it ideal for learning, experimentation, and simulating IT infrastructure.
 
-### Prerequisites
+## Prerequisites
 
-#### Hardware Requirements
+### Hardware Requirements
 
 This installation uses a Dell OptiPlex 3060 Micro equipped with an Intel Core i5-8500T processor (6 cores, 6 threads), 64 GB DDR4 memory, a 2 TB M.2 SSD (used for the TrueNAS ZFS storage pool), a 1 TB SATA SSD (dedicated for the operating system), and a Realtek RTL8111HSD-CG Gigabit Ethernet port. These specifications provide ample resources for running Proxmox VE and hosting multiple virtual machines and containers, making it suitable for a variety of homelab and learning scenarios.
 
-#### Operating System (Hypervisor)
+### Operating System (Hypervisor)
 
 To install Proxmox VE, download the Proxmox ISO image from the [official website](https://www.proxmox.com/en/downloads/proxmox-virtual-environment). For this setup, we are using version **8.4-1**.
 
@@ -20,11 +18,11 @@ To install Proxmox VE, download the Proxmox ISO image from the [official website
 
 > Use a tool like [Rufus](https://rufus.ie/) or [balenaEtcher](https://www.balena.io/etcher/) to create a bootable USB drive with the ISO. Ensure you have a reliable USB stick (at least 4 GB) and verify the download checksum for integrity before proceeding.
 
-#### Preparation Steps
+### Preparation Steps
 
 Before installing Proxmox VE, **$^1$ Update** the BIOS of your chosen hardware to the latest version available from the official support site. In the BIOS settings, **$^2$ Enable** virtualization technologies (Intel VT-x and VT-d or AMD-V), **$^3$ Configure** the boot mode to UEFI for better compatibility and performance, and **$^4$ Ensure** USB boot is enabled. **$^5$ Connect** the system to your network with an Ethernet cable.
 
-### Installation
+## Installation
 
 - Insert the prepared USB drive into the machine and power on the system. Select the USB drive as the boot device from the BIOS/UEFI boot menu to start the Proxmox installer. Select "Install Proxmox VE (Graphical)", read the EULA, and click "I agree" to continue.
 
@@ -63,9 +61,9 @@ Before installing Proxmox VE, **$^1$ Update** the BIOS of your chosen hardware t
 
 ![Proxmox VE Terminal](images/09_installation_screen.png "Proxmox VE Terminal")
 
-### Post-Installation Tasks
+## Post-Installation Tasks
 
-#### Login
+### Login
 
 Log in using the username `root` and the password you set during the Proxmox VE installation. This will grant you administrative access to the web interface, where you can begin configuring and managing your virtual environment.
 
@@ -74,7 +72,7 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 > 💡 After logging in for the first time, you will see a dialog about a subscription. You can simply ignore this message and click "OK" to access the Proxmox web interface. If you wish to remove this notification, there are methods available which will be covered later in the documentation.
 > ![Proxmox VE Subscription Notification](images/pve_subscription_notification.png "Proxmox VE Subscription Notification")
 
-#### Initial System Configuration & Update
+### Initial System Configuration & Update
 
 Now that the installation is complete, it's important to update the system and adjust key settings. You don't need to reinvent the wheel—[Proxmox VE Helper-Scripts](https://community-scripts.github.io/ProxmoxVE/) provide a variety of useful scripts to automate tasks. These scripts help streamline your initial configuration, so you can quickly get your environment ready for use.
 
@@ -86,7 +84,7 @@ After the script finishes running, reboot the system if it has not already been 
 
 ![Proxmox VE Shell](images/pve_shell.png "Proxmox VE Shell")
 
-#### PCI(e) Passthrough
+### PCI(e) Passthrough
 
 Now we need to enable PCI(e) Passthrough in Proxmox. You can follow the official guide here: [PCI(e) Passthrough](<https://pve.proxmox.com/wiki/PCI(e)_Passthrough>).
 
@@ -146,7 +144,7 @@ These steps will enable PCI(e) passthrough support, allowing you to assign physi
    reboot
    ```
 
-#### Disk Layout Adjustment
+### Disk Layout Adjustment
 
 Now we need to adjust the disk layout, as LVM is not necessary for this setup. But removing it also has certain disadvantages (see 'Directory' in [Storage](https://pve.proxmox.com/wiki/Storage) for more details).
 
@@ -166,7 +164,7 @@ Once completed, your “local” storage should increase to the maximum size ava
 
 ![Proxmox VE Storage](images/pve_storage.png "Proxmox VE Storage")
 
-#### Network Configuration
+### Network Configuration
 
 To fit our setup and goals, we need to configure the network interfaces in Proxmox. Follow these steps:
 
