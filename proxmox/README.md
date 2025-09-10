@@ -192,8 +192,6 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
 
 3. Replace the content with the following configuration to add two more interfaces for the OPNsense VM. You can set `vmbr0` to use DHCP for portability, allowing "plug and play" in any network with a properly configured router.
 
-   > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout your setup. Additional network adjustments may be required, which will be covered in a future guide.
-
    ```bash
    auto lo
    iface lo inet loopback
@@ -232,6 +230,8 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
 
    source /etc/network/interfaces.d/*
    ```
+
+   > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout your setup. Additional network adjustments may be required, which will be covered in a future guide.
 
 4. Save and exit the editor.
 5. Reboot the system to apply the new network configuration.
