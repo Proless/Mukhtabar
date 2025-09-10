@@ -38,7 +38,6 @@ Before installing Proxmox VE, **$^1$ Update** the BIOS of your chosen hardware t
 ![Proxmox VE Installer Harddisk](images/03_installation_screen.png "Proxmox VE Installer Harddisk")
 
 > 💡The disk name shown in the screenshot is "VMware Virtual" because a virtual machine was used to capture the installation process for documentation purposes. On your physical hardware, you will see the actual disk model and size.
-
 > 💡If you have specific reasons or requirements, you can customize the disk partitions during installation by clicking on "Options". Refer to the [Advanced LVM Configuration Options](https://pve.proxmox.com/pve-docs/chapter-pve-installation.html#advanced_lvm_options) in the official Proxmox documentation for detailed guidance.
 
 - Select your country, time zone, and preferred keyboard layout. This ensures that your system clock and input settings are correctly configured for your region.
@@ -126,7 +125,7 @@ These steps will enable PCI(e) passthrough support, allowing you to assign physi
 
    Add:
 
-   ```
+   ```bash
    vfio
    vfio_iommu_type1
    vfio_pci
@@ -142,6 +141,7 @@ These steps will enable PCI(e) passthrough support, allowing you to assign physi
    ```
 
 6. Reboot the system to apply all changes:
+
    ```bash
    reboot
    ```
