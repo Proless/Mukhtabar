@@ -1,8 +1,10 @@
 # Proxmox
 
+This guide provides step-by-step instructions for installing and configuring Proxmox VE as the central hypervisor on your hardware. It covers hardware requirements, installation procedures, initial setup, and essential post-installation tasks to help you build a flexible and efficient virtualization environment for learning, experimentation, and IT infrastructure simulation.
+
 ## Introduction
 
-Proxmox Virtual Environment (Proxmox VE) is an open-source virtualization platform that enables you to run and manage multiple virtual machines and containers on a single physical server. In this Mukhtabar environment, Proxmox serves as the central hypervisor, allowing efficient resource allocation, isolation, and management of various services and operating systems. With Proxmox, you can easily deploy, monitor, and maintain virtualized infrastructure components such as firewalls, storage solutions, and application servers, making it ideal for learning, experimentation, and simulating IT infrastructure.
+Proxmox Virtual Environment (Proxmox VE) is an open-source platform for running and managing virtual machines and containers. In Mukhtabar, Proxmox acts as the core hypervisor, providing a flexible foundation for deploying various IT services and infrastructure components.
 
 ## Prerequisites
 
