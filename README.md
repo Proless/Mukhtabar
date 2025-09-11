@@ -22,16 +22,16 @@ Mukhtabar consists of several main components that form the foundation for furth
 
 ## Guides
 
-1. [Proxmox](proxmox/README.md)
+1. [Proxmox](guides/proxmox/README.md)
    Installation and configuration of Proxmox VE as the hypervisor.
 
-2. [OPNsense](opnsense/README.md)
+2. [OPNsense](guides/opnsense/README.md)
    Installing and configuring OPNsense as the main router/firewall for the virtualized network.
 
-3. [GitLab CE](gitlab/README.md)
+3. [GitLab CE](guides/gitlab/README.md)
    Installing GitLab Community Edition as the main source of truth for infrastructure, configuration and DevOps workflows.
 
-4. [TrueNAS Scale](truenas/README.md)
+4. [TrueNAS Scale](guides/truenas/README.md)
    Setting up TrueNAS Scale as a NAS server.
 
 ---
