@@ -1,26 +1,18 @@
 # Proxmox
 
-This guide provides step-by-step instructions for installing and configuring Proxmox VE as the central hypervisor on your hardware. It covers hardware requirements, installation procedures, initial setup, and essential post-installation tasks to help you build a flexible and efficient virtualization environment for learning, experimentation, and IT infrastructure simulation.
+This guide provides step-by-step instructions for installing and configuring Proxmox VE as the central hypervisor on your hardware. It covers hardware requirements, installation procedures, initial setup, and essential post-installation tasks.
 
 ## Introduction
 
 Proxmox Virtual Environment (Proxmox VE) is an open-source platform for running and managing virtual machines and containers. In Mukhtabar, Proxmox acts as the core hypervisor, providing a flexible foundation for deploying various IT services and infrastructure components.
 
-## Prerequisites
-
-### Hardware Requirements
-
-This installation uses a Dell OptiPlex 3060 Micro equipped with an Intel Core i5-8500T processor (6 cores, 6 threads), 64 GB DDR4 memory, a 2 TB M.2 SSD (used for the TrueNAS ZFS storage pool), a 1 TB SATA SSD (dedicated for the operating system), and a Realtek RTL8111HSD-CG Gigabit Ethernet port. These specifications provide ample resources for running Proxmox VE and hosting multiple virtual machines and containers, making it suitable for a variety of homelab and learning scenarios.
-
-### Operating System (Hypervisor)
+## Preparation Steps
 
 To install Proxmox VE, download the Proxmox ISO image from the [official website](https://www.proxmox.com/en/downloads/proxmox-virtual-environment). For this setup, we are using version **8.4-1**.
 
 ![Proxmox VE Version 8.4-1](images/pve_version.png "Proxmox VE Version 8.4-1")
 
 > Use a tool like [Rufus](https://rufus.ie/) or [balenaEtcher](https://www.balena.io/etcher/) to create a bootable USB drive with the ISO. Ensure you have a reliable USB stick (at least 4 GB) and verify the download checksum for integrity before proceeding.
-
-### Preparation Steps
 
 Before installing Proxmox VE, **$^1$ Update** the BIOS of your chosen hardware to the latest version available from the official support site. In the BIOS settings, **$^2$ Enable** virtualization technologies (Intel VT-x and VT-d or AMD-V), **$^3$ Configure** the boot mode to UEFI for better compatibility and performance, and **$^4$ Ensure** USB boot is enabled. **$^5$ Connect** the system to your network with an Ethernet cable.
 
