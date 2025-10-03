@@ -22,17 +22,21 @@ Mukhtabar consists of several main components that form the foundation for furth
 
 ## Guides
 
-1. [Proxmox](guides/proxmox/README.md)
-   Installation and configuration of Proxmox VE as the hypervisor.
+To begin setting up this computing environment, follow the guides listed below. Each guide provides detailed, step-by-step instructions to ensure a successful implementation of Mukhtabar's core components.
 
-2. [OPNsense](guides/opnsense/README.md)
-   Installing and configuring OPNsense as the main router/firewall for the virtualized network.
+1. **[Proxmox](guides/proxmox/README.md)**  
+   Learn how to install and configure Proxmox VE as the central hypervisor. This guide covers hardware preparation, installation, initial setup, and essential post-installation tasks to create the required virtualization platform.
 
-3. [GitLab CE](guides/gitlab/README.md)
-   Installing GitLab Community Edition as the main source of truth for infrastructure, configuration and DevOps workflows.
+2. **[OPNsense](guides/opnsense/README.md)**  
+   Set up OPNsense as the primary router and firewall for the virtualized network. This guide includes instructions for configuring LAN and WAN bridges, VLANs, DHCP, DNS, load balancing, reverse proxy functionality, and SSL/TLS certificate management.
 
-4. [TrueNAS Scale](guides/truenas/README.md)
-   Setting up TrueNAS Scale as a NAS server.
+3. **[GitLab CE](guides/gitlab/README.md)**  
+   Install and configure GitLab Community Edition as the main source of truth for infrastructure and DevOps workflows. This guide explains how to integrate GitLab with your environment to manage Infrastructure as Code (IaC) and Configuration Management (CM) tools like Terraform and Ansible.
+
+4. **[TrueNAS Scale](guides/truenas/README.md)**  
+   Set up TrueNAS Scale as a dedicated storage and backup server. This guide covers creating shared volumes, configuring snapshots and replication, and using TrueNAS as a general-purpose NAS server for your home network.
+
+Each guide is designed to build upon the previous one, creating a cohesive and functional environment. Once the core components are in place, you can expand Mukhtabar by adding additional modules, such as Kubernetes clusters, Docker Swarm environments, or standalone services, to suit your specific needs.
 
 ---
 

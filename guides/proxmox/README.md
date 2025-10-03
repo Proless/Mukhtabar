@@ -80,7 +80,7 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 ### Initial System Configuration & Update
 
-Now that the installation is complete, it's important to update the system and adjust key settings. You don't need to reinvent the wheel—[Proxmox VE Helper-Scripts](https://community-scripts.github.io/ProxmoxVE/) provide a variety of useful scripts to automate tasks. These scripts help streamline your initial configuration, so you can quickly get your environment ready for use.
+Now that the installation is complete, it's important to update the system and adjust key settings. We don't need to reinvent the wheel—[Proxmox VE Helper-Scripts](https://community-scripts.github.io/ProxmoxVE/) provide a variety of useful scripts to automate tasks. These scripts help streamline your initial configuration, so you can quickly get your environment ready for use.
 
 ![Proxmox VE WebUI](images/pve_webui.png "Proxmox VE WebUI")
 
@@ -158,8 +158,9 @@ Now we need to adjust the disk layout, as LVM is not necessary for this setup. B
 1. In the Proxmox web interface, click on “Datacenter” and then select “Storage”
 2. Click on “local-lvm” and choose “Remove”
    _Note: Removing local-lvm is safe in this fresh install_
-3. After removal, click on your node and open the “Shell”
-4. Run the following commands to remove the LVM data volume and expand the root volume:
+3. Now, select “local” from the storage list and click "Edit." In the "Content" drop-down menu, select all available options to allow the storage to handle various types of data (e.g., Disk images, backups, containers, etc.). Confirm your changes by clicking "OK"
+4. After removal of “local-lvm”, click on your node and open the “Shell”
+5. Run the following commands to remove the LVM data volume and expand the root volume:
 
    ```bash
    lvremove /dev/pve/data
@@ -195,7 +196,7 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    source /etc/network/interfaces.d/*
    ```
 
-   > 💡 Make a note of your network interface name (e.g., 'enp1s0'). This name may vary depending on your hardware and installation.
+   > 💡 Make a note of your network interface name (e.g., `enp1s0`). The interface name may vary depending on your hardware and installation. Replace `enp1s0` in the configuration examples with the actual name of your network interface
 
 3. Replace the content with the following configuration to add two more interfaces for the OPNsense VM. You can set `vmbr0` to use DHCP for portability, allowing "plug and play" in any network with a properly configured router.
 
@@ -241,4 +242,4 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout your setup. Additional network adjustments may be required, which will be covered in a future guide.
 
 4. Save and exit the editor.
-5. Reboot the system to apply the new network configuration.
+5. Reboot the system to apply the new network configuration
