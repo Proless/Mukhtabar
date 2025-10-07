@@ -1,10 +1,10 @@
 # 🔬 $Mukhtabar^1$ (مُخْتَبَر)
 
-A portable, small-scale, and opinionated computing environment designed for hands-on learning, experimentation, and simulation of IT infrastructure. Mukhtabar can be used as a DevOps learning lab, a starter homelab setup, or a platform to explore and test various software technologies in a controlled environment.
+A portable, small-scale, and opinionated computing environment designed for hands-on learning, experimentation, and simulation of IT infrastructure. This environment can be used as a DevOps learning lab, a starter homelab setup, or a platform to explore and test various software technologies in a controlled environment.
 
-## Setup Overview
+## Overview
 
-Mukhtabar consists of several main components that form the foundation for further customization:
+The Mukhtabar environment consists of several main components that form the foundation:
 
 - **Hypervisor Host**
 
@@ -12,9 +12,9 @@ Mukhtabar consists of several main components that form the foundation for furth
 
 - **OPNsense Firewall & Networking**
 
-  The virtualized OPNsense firewall acts as the main gateway for all incoming traffic, except for ports 8006 (Proxmox GUI) and 22 (SSH), which remain accessible for management. It routes all virtual machines and containers running on Proxmox, using two Linux bridges for LAN and WAN connectivity. A point-to-point connection between the WAN interface and the host bridge closely resembles a cloud server setup with a single public IP. While this approach is not ideal for every scenario, it fulfills the goal of creating a portable and flexible computing environment.
+  The virtualized OPNsense firewall acts as the main gateway for all incoming traffic, except for ports 8006 (Proxmox GUI) and 22 (SSH), which remain accessible for management. It routes all virtual machines and containers running on Proxmox, using two Linux bridges for LAN and WAN connectivity. A point-to-point connection between the WAN interface and the host bridge closely resembles a cloud server setup with a single public IP. While this approach is not ideal for every scenario, it fulfills the goal of creating a portable computing environment.
 
-  OPNsense manages the entire virtual LAN, providing DHCP and DNS services for all connected systems. VLANs are configured to segment the network, offering isolation and security for different services such as management, storage, and applications. OPNsense also handles IP assignment, DNS resolution, and inter-VLAN routing. Additionally, it provides load balancing and reverse proxy functionality using integrated HAProxy and Nginx, and acts as a private certificate authority (CA) to issue and manage SSL/TLS certificates for internal services.
+  OPNsense manages the entire virtual LAN, providing DHCP and DNS services for all connected systems. VLANs are configured to segment the network, offering isolation and security for different services such as management, storage, and applications. OPNsense also handles IP assignment, DNS resolution, and inter-VLAN routing. Additionally, it provides load balancing and reverse proxy functionality using integrated HAProxy and Nginx.
 
 - **TrueNAS Scale**
 
@@ -22,21 +22,21 @@ Mukhtabar consists of several main components that form the foundation for furth
 
 ## Guides
 
-To begin setting up this computing environment, follow the guides listed below. Each guide provides detailed, step-by-step instructions to ensure a successful implementation of Mukhtabar's core components.
+To begin setting up this computing environment, follow the guides listed below. Each guide provides detailed, step-by-step instructions to ensure a successful implementation of Mukhtabar's main components.
 
 1. **[Proxmox](guides/proxmox/README.md)**  
-   Learn how to install and configure Proxmox VE as the central hypervisor. This guide covers hardware preparation, installation, initial setup, and essential post-installation tasks to create the required virtualization platform.
+   Learn how to install and configure Proxmox VE as the central hypervisor.
 
 2. **[OPNsense](guides/opnsense/README.md)**  
-   Set up OPNsense as the primary router and firewall for the virtualized network. This guide includes instructions for configuring LAN and WAN bridges, VLANs, DHCP, DNS, load balancing, reverse proxy functionality, and SSL/TLS certificate management.
+   Set up OPNsense as the primary router and firewall for the virtualized network.
 
 3. **[GitLab CE](guides/gitlab/README.md)**  
-   Install and configure GitLab Community Edition as the main source of truth for infrastructure and DevOps workflows. This guide explains how to integrate GitLab with your environment to manage Infrastructure as Code (IaC) and Configuration Management (CM) tools like Terraform and Ansible.
+   Install and configure GitLab Community Edition as the main source of truth for infrastructure and DevOps workflows.
 
 4. **[TrueNAS Scale](guides/truenas/README.md)**  
-   Set up TrueNAS Scale as a dedicated storage and backup server. This guide covers creating shared volumes, configuring snapshots and replication, and using TrueNAS as a general-purpose NAS server for your home network.
+   Set up TrueNAS Scale as a dedicated storage and backup server.
 
-Each guide is designed to build upon the previous one, creating a cohesive and functional environment. Once the core components are in place, you can expand Mukhtabar by adding additional modules, such as Kubernetes clusters, Docker Swarm environments, or standalone services, to suit your specific needs.
+Each guide is designed to build upon the previous one, creating a cohesive and functional environment. Once the core components are in place, you can expand the Mukhtabar environment by adding additional modules, such as Kubernetes clusters, Docker Swarm environments, or standalone services, to suit your specific needs.
 
 ---
 
