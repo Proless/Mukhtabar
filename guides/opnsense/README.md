@@ -351,3 +351,13 @@ To enable a DHCP server on the LAN interface, navigate to `Services` → `Kea DH
 ### Update OPNsense
 
 After completing the initial setup and configuration, it's important to ensure the system is up to date. In the left side panel, navigate to `System` → `Firmware` → `Status`. Click on `Check for updates` to see if any updates are available. If updates are found, click `Update` and wait for the process to finish. Keeping your firewall updated is essential for security and stability.
+
+Next, to improve integration between OPNsense and Proxmox, you should install the QEMU Guest Agent plugin.
+
+To install the QEMU Guest Agent plugin:
+
+1. Go to `System` → `Firmware` → `Plugins` in the OPNsense Web UI.
+2. Check the option `Show community plugins` to display additional available plugins.
+3. In the search box, enter `os-qemu-guest-agent`.
+4. When the plugin appears in the list, click the `+` sign next to it to install.
+5. After installation, reboot the OPNsense VM to activate the QEMU Guest Agent.
