@@ -32,39 +32,38 @@ Before installing Proxmox VE, ensure the following preparation steps are complet
 
 ## Installation
 
-- Insert the prepared USB drive into the machine and power on the system. Select the USB drive as the boot device from the BIOS/UEFI boot menu to start the Proxmox installer. Select "Install Proxmox VE (Graphical)", read the EULA, and click "I agree" to continue.
+Insert the prepared USB drive into the machine and power on the system. Select the USB drive as the boot device from the BIOS/UEFI boot menu to start the Proxmox installer. Select "Install Proxmox VE (Graphical)", read the EULA, and click "I agree" to continue.
 
 ![Proxmox VE Installer Start Screen](image/01_installation_screen.png "Proxmox VE Installer Start Screen")
 ![Proxmox VE Installer EULA Screen](image/02_installation_screen.png "Proxmox VE Installer EULA Screen")
 
 > 💡 Sometimes the graphical installer may have compatibility issues with certain graphics cards, resulting in the screen being cut off at the bottom and preventing you from completing the installation. If you encounter this problem, use the "Terminal UI" option instead, which provides a text-based installation.
 
-- Choose the target disk for installation. For this setup, we will use the default option and allow Proxmox to automatically partition the disk.
+Choose the target disk for installation. For this setup, we will use the default option and allow Proxmox to automatically partition the disk.
 
 ![Proxmox VE Installer Harddisk](image/03_installation_screen.png "Proxmox VE Installer Harddisk")
 
-> 💡The disk name shown in the screenshot is "VMware Virtual" because a virtual machine was used to capture the installation process for documentation purposes. On your physical hardware, you will see the actual disk model and size.
 > 💡If you have specific reasons or requirements, you can customize the disk partitions during installation by clicking on "Options". Refer to the [Advanced LVM Configuration Options](https://pve.proxmox.com/pve-docs/chapter-pve-installation.html#advanced_lvm_options) in the official Proxmox documentation for detailed guidance.
 
-- Select your country, time zone, and preferred keyboard layout. This ensures that your system clock and input settings are correctly configured for your region.
+Select your country, time zone, and preferred keyboard layout. This ensures that your system clock and input settings are correctly configured for your region.
 
 ![Proxmox VE Installer Location and Time Zone selection](image/04_installation_screen.png "Proxmox VE Installer Location and Time Zone selection")
 
-- Set a strong password for the root user and confirm it. Enter an email address to receive system notifications from Proxmox. If you do not wish to use a real email, you can enter a placeholder address.
+Set a strong password for the root user and confirm it. Enter an email address to receive system notifications from Proxmox. If you do not wish to use a real email, you can enter a placeholder address.
 
 ![Proxmox VE Installer Administration Password and Email Address](image/05_installation_screen.png "Proxmox VE Installer Administration Password and Email Address")
 
-- Configure the hostname and domain for your Proxmox server to identify it on your local network. Assign a static IP address, gateway, and DNS server according to your network setup.
+Configure the hostname and domain for your Proxmox server to identify it on your local network. Assign a static IP address, gateway, and DNS server according to your network setup.
 
 ![Proxmox VE Installer Management Network Configuration](image/06_installation_screen.png "Proxmox VE Installer Management Network Configuration")
 
-- Review all the settings and information on the summary screen to ensure they match your configuration. Once you are satisfied, click "Install" to begin the installation process.
+Review all the settings and information on the summary screen to ensure they match your configuration. Once you are satisfied, click "Install" to begin the installation process.
 
 ![Proxmox VE Installer Summary](image/07_installation_screen.png "Proxmox VE Installer Summary")
 
 ![Proxmox VE Installer Installation](image/08_installation_screen.png "Proxmox VE Installer Installation")
 
-- Once the installation is complete, the system will automatically reboot. On startup, Proxmox VE will display the IP address and port (usually `https://your-ip-address:8006`) to access the web interface. Use this address in your browser to log in and begin configuring your Proxmox environment.
+Once the installation is complete, the system will automatically reboot. On startup, Proxmox VE will display the IP address and port (usually `https://your-ip-address:8006`) to access the web interface. Use this address in your browser to log in and begin configuring your Proxmox environment.
 
 ![Proxmox VE Terminal](image/09_installation_screen.png "Proxmox VE Terminal")
 
@@ -158,7 +157,7 @@ Now we need to adjust the disk layout, as LVM is not necessary for this setup. B
 
 1. In the Proxmox web interface, click on “Datacenter” and then select “Storage”
 2. Click on “local-lvm” and choose “Remove”
-   _Note: Removing local-lvm is safe in this fresh install_
+   (_Note: Removing local-lvm is safe in this fresh install_)
 3. Now, select “local” from the storage list and click "Edit." In the "Content" drop-down menu, select all available options to allow the storage to handle various types of data (e.g., Disk images, backups, containers, etc.). Confirm your changes by clicking "OK"
 4. After removal of “local-lvm”, click on your node and open the “Shell”
 5. Run the following commands to remove the LVM data volume and expand the root volume:
