@@ -8,17 +8,13 @@ The Mukhtabar environment consists of several main components that form the foun
 
 - **Hypervisor Host**
 
-  The physical hardware running Proxmox VE. For this setup, a Dell OptiPlex 3060 Micro is used, equipped with an Intel Core i5-8500T processor (6 cores, 6 threads), 64 GB DDR4 memory, a 2 TB M.2 SSD (dedicated to the TrueNAS ZFS storage pool), a 1 TB SATA SSD (used for the operating system), and a Realtek RTL8111HSD-CG Gigabit Ethernet port. These specifications provide sufficient resources for running Proxmox VE and hosting multiple virtual machines and containers, making the environment suitable for a wide range of homelab and learning scenarios.
+  The physical hardware running Proxmox VE. For this setup, a Dell OptiPlex 3060 Micro is used, equipped with an Intel Core i5-8500T processor (6 cores, 6 threads), 64 GB DDR4 memory, a 1 TB SATA SSD (used for the operating system and storage), and a Realtek RTL8111HSD-CG Gigabit Ethernet port. These specifications provide sufficient resources for running Proxmox VE and hosting multiple virtual machines and containers, making the environment suitable for a wide range of homelab and learning scenarios.
 
 - **OPNsense Firewall & Networking**
 
   The virtualized OPNsense firewall acts as the main gateway for all incoming traffic, except for ports 8006 (Proxmox GUI) and 22 (SSH), which remain accessible for management. It routes all virtual machines and containers running on Proxmox, using two Linux bridges for LAN and WAN connectivity. A point-to-point connection between the WAN interface and the host bridge closely resembles a cloud server setup with a single public IP. While this approach is not ideal for every scenario, it fulfills the goal of creating a portable computing environment.
 
   OPNsense manages the entire virtual LAN, providing DHCP and DNS services for all connected systems. VLANs are configured to segment the network, offering isolation and security for different services such as management, storage, and applications. OPNsense also handles IP assignment, DNS resolution, and inter-VLAN routing. Additionally, it provides load balancing and reverse proxy functionality using integrated HAProxy and Nginx.
-
-- **TrueNAS Scale**
-
-  TrueNAS Scale serves as the dedicated storage and backup server within the Mukhtabar environment. It provides centralized file storage, shared volumes, and data protection for all virtual machines and services running on Proxmox. Additionally, TrueNAS Scale can function as a general-purpose NAS server for your home network, though this requires additional configuration and setup, which will be covered in its dedicated guide.
 
 ## Guides
 
@@ -32,9 +28,6 @@ To begin setting up this computing environment, follow the guides listed below. 
 
 3. **[GitLab CE](guides/gitlab/README.md)**  
    Install and configure GitLab Community Edition as the main source of truth for infrastructure and DevOps workflows.
-
-4. **[TrueNAS Scale](guides/truenas/README.md)**  
-   Set up TrueNAS Scale as a dedicated storage and backup server.
 
 Each guide is designed to build upon the previous one, creating a cohesive and functional environment. Once the core components are in place, you can expand the Mukhtabar environment by adding additional modules, such as Kubernetes clusters, Docker Swarm environments, or standalone services, to suit your specific needs.
 
