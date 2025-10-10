@@ -1,6 +1,6 @@
 # Proxmox
 
-This guide provides step-by-step instructions for installing and configuring Proxmox VE. Proxmox serves as the foundational hypervisor, hosting all other core components—such as OPNsense, TrueNAS, and GitLab—as virtual machines. This document covers the entire process, from initial hardware preparation and OS installation to essential post-installation tasks required to build a robust and flexible virtualization platform.
+This guide provides step-by-step instructions for installing and configuring Proxmox VE. Proxmox serves as the foundational hypervisor, hosting all other core components—such as OPNsense, and GitLab—as virtual machines. This document covers the entire process, from initial hardware preparation and OS installation to essential post-installation tasks required to build a robust and flexible virtualization platform.
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@ This guide provides step-by-step instructions for installing and configuring Pro
   - [Post-Installation Tasks](#post-installation-tasks)
     - [Login](#login)
     - [Initial System Configuration & Update](#initial-system-configuration--update)
-    - [PCI(e) Passthrough](#pcie-passthrough)
+    - [PCI(e) Passthrough (_optional_)](#pcie-passthrough-optional)
     - [Disk Layout Adjustment](#disk-layout-adjustment)
     - [Network Configuration](#network-configuration)
 
@@ -90,11 +90,11 @@ After the script finishes running, reboot the system if it has not already been 
 
 ![Proxmox VE Shell](image/pve_shell.png "Proxmox VE Shell")
 
-### PCI(e) Passthrough
+### PCI(e) Passthrough (_optional_)
 
-Now we need to enable PCI(e) Passthrough in Proxmox. You can follow the official guide here: [PCI(e) Passthrough](<https://pve.proxmox.com/wiki/PCI(e)_Passthrough>).
+This step is optional and only required if you plan to use PCI(e) passthrough for VMs that need direct access to physical hardware (such as disks or network cards). If you do not require passthrough functionality, you can safely skip this section.
 
-These steps will enable PCI(e) passthrough support, allowing you to assign physical devices directly to your virtual machines. In this setup, PCI(e) passthrough is required to dedicate the 2 TB SSD to the TrueNAS VM, ensuring optimal performance and direct disk access for storage operations.
+To enable PCI(e) Passthrough in Proxmox. You can follow the official guide here: [PCI(e) Passthrough](<https://pve.proxmox.com/wiki/PCI(e)_Passthrough>).
 
 1. Update package lists and install a text editor:
 
