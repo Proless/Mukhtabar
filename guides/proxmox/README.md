@@ -6,6 +6,7 @@ This guide provides step-by-step instructions for installing and configuring Pro
 
 - [Proxmox](#proxmox)
   - [Preparation Steps](#preparation-steps)
+    - [ISO Download](#iso-download)
   - [Installation](#installation)
   - [Post-Installation Tasks](#post-installation-tasks)
     - [Login](#login)
@@ -15,6 +16,8 @@ This guide provides step-by-step instructions for installing and configuring Pro
     - [Network Configuration](#network-configuration)
 
 ## Preparation Steps
+
+### ISO Download
 
 To install Proxmox VE, download the Proxmox ISO image from the [official website](https://www.proxmox.com/en/downloads/proxmox-virtual-environment). For this setup, we are using version **8.4-1**.
 
