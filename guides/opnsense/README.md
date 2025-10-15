@@ -350,10 +350,10 @@ To enable a DHCP server on the LAN interface, navigate to `Services` → `Kea DH
 
 Next, go to the `Subnets` tab and create a new subnet for the LAN network.
 
-- **Subnet:** `10.0.0.0/24`  
+- **Subnet:** `10.0.0.0/24`
   This specifies the network address and subnet mask for your management LAN. All devices on this network will receive IP addresses within this range.
 
-- **Pools:** `10.0.0.100-10.0.0.200`  
+- **Pools:** `10.0.0.100 - 10.0.0.200`
   This defines the range of IP addresses that the DHCP server can assign to clients. Devices connecting to the LAN will automatically receive an address from this pool.
 
 - **Description:** `Management Subnet`
