@@ -83,11 +83,16 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 ### Initial System Configuration & Update
 
-Now that the installation is complete, it's important to update the system and adjust key settings. We don't need to reinvent the wheel—[Proxmox VE Helper-Scripts](https://community-scripts.github.io/ProxmoxVE/) provide a variety of useful scripts to automate tasks. These scripts help streamline your initial configuration, so you can quickly get your environment ready for use.
+Now that the installation is complete, it's important to update the system and adjust key settings.
 
 ![Proxmox VE WebUI](image/pve_webui.png "Proxmox VE WebUI")
 
-We will use the [Proxmox VE Post Install Script](https://community-scripts.github.io/ProxmoxVE/scripts?id=post-pve-install) to automate essential post-installation tasks. In the Proxmox web interface, all available nodes are listed on the left—currently, there is only one. Click on your node, navigate to "Shell," and paste the script command from the website to begin running the script and configuring your environment. You can safely select 'yes' to all options in the script. This will update repositories, apply system updates, remove the subscription notification, and adjust system settings that are not required for this setup.
+Click on your node, navigate to "Shell", run the following commands:
+
+- `apt update && apt install -y curl`
+- Copy the `pve_init.sh` script link [pve_init.sh](pve_init.sh)
+
+The script will update repositories, remove the subscription notification and apply system updates.
 
 After the script finishes running, reboot the system if it has not already been done automatically. You can reboot Proxmox either from the WebUI or by entering the `reboot` command in the shell. This ensures all updates and changes are applied correctly before you proceed with further configuration.
 
