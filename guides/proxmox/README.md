@@ -111,7 +111,7 @@ To enable PCI(e) Passthrough in Proxmox. You can follow the official guide here:
 1. Update package lists and install a text editor:
 
    ```bash
-   apt update && apt install nano
+   apt update && apt install -y nano
    ```
 
 2. Edit the GRUB configuration to enable IOMMU. Open `/etc/default/grub` and modify the `GRUB_CMDLINE_LINUX_DEFAULT` line to include `intel_iommu=on`:
