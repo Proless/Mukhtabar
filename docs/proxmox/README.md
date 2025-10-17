@@ -87,7 +87,7 @@ Now that the installation is complete, it's important to update the system and a
 
 To automate post-install tasks, download and run the initialization script from this repository:
 
-**[View pve_init.sh](../../scripts/pve_init.sh)**
+**[View pve_init.sh](../../scripts/proxmox/pve_init.sh)**
 
 Or
 

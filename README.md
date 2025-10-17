@@ -16,18 +16,20 @@ The Mukhtabar environment consists of several main components that form the foun
 
   OPNsense manages the entire virtual LAN, providing DHCP and DNS services for all connected systems. VLANs are configured to segment the network, offering isolation and security for different services such as management, storage, and applications. OPNsense also handles IP assignment, DNS resolution, and inter-VLAN routing. Additionally, it provides load balancing and reverse proxy functionality using integrated HAProxy and Nginx.
 
+- **GitLab Community Edition**
+
 ## Guides
 
 To begin setting up this computing environment, follow the guides listed below. Each guide provides detailed, step-by-step instructions to ensure a successful implementation of Mukhtabar's main components.
 
-1. **[Proxmox](guides/proxmox/README.md)**  
+1. **[Proxmox](docs/proxmox/README.md)**
    Learn how to install and configure Proxmox VE as the central hypervisor.
 
-2. **[OPNsense](guides/opnsense/README.md)**  
+2. **[OPNsense](docs/opnsense/README.md)**
    Set up OPNsense as the primary router and firewall for the virtualized network.
 
-3. **[GitLab CE](guides/gitlab/README.md)**  
-   Install and configure GitLab Community Edition as the main source of truth for infrastructure and DevOps workflows.
+3. **[GitLab CE](docs/gitlab/README.md)**
+   Install and configure GitLab Community Edition as the main source of truth for infrastructure and GitOps workflows.
 
 Each guide is designed to build upon the previous one, creating a cohesive and functional environment. Once the core components are in place, you can expand the Mukhtabar environment by adding additional modules, such as Kubernetes clusters, Docker Swarm environments, or standalone services, to suit your specific needs.
 
