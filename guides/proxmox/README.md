@@ -102,8 +102,6 @@ The script will update repositories, remove the subscription notification, and a
 
 After the script finishes running, the system will reboot automatically.
 
-![Proxmox VE Shell](image/pve_shell.png "Proxmox VE Shell")
-
 ### PCI(e) Passthrough (_optional_)
 
 This step is optional and only required if you plan to use PCI(e) passthrough for VMs that need direct access to physical hardware (such as disks or network cards). If you do not require passthrough functionality, you can safely skip this section.
