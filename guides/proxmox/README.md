@@ -85,16 +85,22 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 Now that the installation is complete, it's important to update the system and adjust key settings.
 
-![Proxmox VE WebUI](image/pve_webui.png "Proxmox VE WebUI")
+To automate post-install tasks, download and run the initialization script from this repository:
 
-Click on your node, navigate to "Shell", run the following commands:
+**[View pve_init.sh](../../scripts/pve_init.sh)**
 
-- `apt update && apt install -y curl`
-- Copy the `pve_init.sh` script link [pve_init.sh](pve_init.sh)
+Or
 
-The script will update repositories, remove the subscription notification and apply system updates.
+To download and execute the script directly, click on your node, navigate to "Shell", run the following commands:
 
-After the script finishes running, reboot the system if it has not already been done automatically. You can reboot Proxmox either from the WebUI or by entering the `reboot` command in the shell. This ensures all updates and changes are applied correctly before you proceed with further configuration.
+```bash
+apt update && apt install -y curl
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/pve_init.sh)"
+```
+
+The script will update repositories, remove the subscription notification, and apply system updates.
+
+After the script finishes running, the system will reboot automatically.
 
 ![Proxmox VE Shell](image/pve_shell.png "Proxmox VE Shell")
 

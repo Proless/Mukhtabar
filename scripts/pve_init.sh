@@ -1,10 +1,6 @@
 #! /usr/bin/env bash
-set -e
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "This script must be run as root" >&2
-    exit 1
-fi
+set -e
 
 echo "Updating Proxmox VE Sources..."
 
@@ -99,4 +95,6 @@ apt -y dist-upgrade
 apt -y autoremove
 
 echo "Reboot..."
+sleep 2s
+
 reboot
