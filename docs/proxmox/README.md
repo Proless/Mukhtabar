@@ -60,6 +60,8 @@ Configure the hostname and domain for your Proxmox server to identify it on your
 
 ![Proxmox VE Installer Management Network Configuration](image/06_installation_screen.png "Proxmox VE Installer Management Network Configuration")
 
+> 💡 The Hostname you set here will be the name by which your Proxmox host is identified on your local network. In my setup, the `.lan` domain is automatically assigned to connected devices by the router.
+
 Review all the settings and information on the summary screen to ensure they match your configuration. Once you are satisfied, click "Install" to begin the installation process.
 
 ![Proxmox VE Installer Summary](image/07_installation_screen.png "Proxmox VE Installer Summary")
@@ -83,24 +85,18 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 ### Initial System Configuration & Update
 
-Now that the installation is complete, it's important to update the system and adjust key settings.
+Now that the installation is complete, it's important to update the system and adjust some initial settings. You can review the script before executing it by visiting **[View pve_init.sh](../../scripts/proxmox/pve_init.sh)**.
 
-To automate post-install tasks, download and run the initialization script from this repository:
-
-**[View pve_init.sh](../../scripts/proxmox/pve_init.sh)**
-
-Or
-
-To download and execute the script directly, click on your node, navigate to "Shell", run the following commands:
+To download and execute the script directly, select your node in the Proxmox web interface, navigate to "Shell," and run the following commands:
 
 ```bash
 apt update && apt install -y curl
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/pve_init.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/proxmox/pve_init.sh)"
 ```
 
-The script will update repositories, remove the subscription notification, and apply system updates.
+This script will update the package repositories, remove the subscription notification, and apply all available system updates.
 
-After the script finishes running, the system will reboot automatically.
+After the script finishes running, the system will automatically reboot to ensure all changes take effect.
 
 ### PCI(e) Passthrough (_optional_)
 
