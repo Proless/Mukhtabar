@@ -1,6 +1,6 @@
 # Proxmox
 
-This guide provides step-by-step instructions for installing and configuring Proxmox VE. Proxmox serves as the foundational hypervisor, hosting all other core components—such as OPNsense, and GitLab—as virtual machines. This document covers the entire process, from initial hardware preparation and OS installation to essential post-installation tasks required to build a robust and flexible virtualization platform.
+This guide provides step-by-step instructions for installing and configuring Proxmox VE. Proxmox serves as the foundational hypervisor, hosting all other core components—such as OPNsense, and GitLab—as virtual machines. This document covers the entire process, from initial hardware preparation and OS installation to essential post-installation tasks.
 
 ## Table of Contents
 
@@ -85,13 +85,13 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 ### Initial System Configuration & Update
 
-Now that the installation is complete, it's important to update the system and adjust some initial settings. You can review the script before executing it by visiting **[View pve_init.sh](../../scripts/proxmox/pve_init.sh)**.
+Now that the installation is complete, it's important to update the system and adjust some initial settings. You can review the script before executing it by visiting **[View pve-init.sh](../../scripts/proxmox/pve-init.sh)**.
 
 To download and execute the script directly, select your node in the Proxmox web interface, navigate to "Shell," and run the following commands:
 
 ```bash
 apt update && apt install -y curl
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/proxmox/pve_init.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/proxmox/pve-init.sh)"
 ```
 
 This script will update the package repositories, remove the subscription notification, and apply all available system updates.
