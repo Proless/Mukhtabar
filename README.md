@@ -18,6 +18,8 @@ The Mukhtabar environment consists of several main components that form the foun
 
 - **GitLab Community Edition**
 
+  GitLab serves as the main source of truth for the infrastructure, acting as the central platform for managing code, configuration, and automation. It enables you to implement GitOps workflows for deployment, configuration, and operational tasks using its powerful built-in CI/CD engine. With GitLab, you can version control your Infrastructure as Code (IaC), automate deployments, and coordinate DevOps processes across the entire environment.
+
 ## Guides
 
 To begin setting up this computing environment, follow the guides listed below. Each guide provides detailed, step-by-step instructions to ensure a successful implementation of Mukhtabar's main components.
