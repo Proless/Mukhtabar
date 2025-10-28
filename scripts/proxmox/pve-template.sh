@@ -7,17 +7,24 @@ set -e
 # --- Configuration ---
 
 # VM settings
-STORAGE=""              # The Proxmox storage where the VM disk will be allocated
-BRIDGE=""               # The Proxmox network bridge for the VM
-VMID=""                 # VM ID for the template
-VM_NAME=""              # Name for the template
-DISK_SIZE=""            # Disk size for the VM (e.g., 32G)
-MEMORY="2048"           # Memory in MB (default: 2048)
-CORES="4"               # Number of CPU cores (default: 4)
+VMID=""                             # VM ID for the template
+VM_NAME=""                          # Name for the template
+DISK_SIZE=""                        # Disk size for the VM (e.g., 32G)
+STORAGE="${STORAGE:-local}"         # The Proxmox storage where the VM disk will be allocated (default: local)
+BRIDGE="${BRIDGE:-vmbr0}"           # The Proxmox network bridge for the VM (default: vmbr0)
+MEMORY="2048"                       # Memory in MB (default: 2048)
+CORES="4"                           # Number of CPU cores (default: 4)
+DISK_FORMAT="qcow2"                 # Disk format: qcow2 (default), raw, or vmdk
+DISK_FLAGS="discard=on"             # Default disk flags
+
+# SSH settings
+ENABLE_ROOT_LOGIN="false"           # If set to true, enable PermitRootLogin yes
+ENABLE_PASSWORD_AUTH="false"        # If set to true, enable PasswordAuthentication yes
 
 # Cloud-Init settings
-CI_USER=""
-CI_PASSWORD=""
+USER=""
+PASSWORD=""
+SSH_KEYS=""
 
 # Localization settings
 TIMEZONE=""             # Timezone (e.g., America/New_York, Europe/London)
@@ -39,7 +46,6 @@ DEBIAN_IMAGE_URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-1
 # Ubuntu 24.04 (Noble Numbat)
 UBUNTU_IMAGE_URL="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 
-
 # --- Functions ---
 
 # Function to display usage information
@@ -52,21 +58,26 @@ usage() {
     echo "  ubuntu"
     echo ""
     echo "Options:"
-    echo "  -u,  --user <user>          Set the cloud-init username"
-    echo "  -p,  --password <password>  Set the cloud-init password"
-    echo "  -i,  --install <packages>   Space-separated list of packages to install in the template"
-    echo "  -s,  --storage <storage>    Proxmox storage for VM disk"
-    echo "  -ss, --snippets-storage <storage>  Proxmox storage for cloud-init snippets (default: same as --storage)"
-    echo "  -b,  --bridge <bridge>      Network bridge for VM"
-    echo "  -d,  --disk-size <size>     Disk size (e.g., 32G, 50G)"
-    echo "  -m,  --memory <mb>          Memory in MB (default: 2048)"
-    echo "  -c,  --cores <num>          Number of CPU cores (default: 4)"
-    echo "  -t,  --timezone <timezone>  Timezone (e.g., America/New_York, Europe/London)"
-    echo "  -k,  --keyboard <layout>    Keyboard layout (e.g., us, uk, de)"
-    echo "  -l,  --locale <locale>      Locale (e.g., en_US.UTF-8, en_GB.UTF-8)"
-    echo "  -v,  --vmid <id>            VM ID for the template"
-    echo "  -n,  --name <name>          Name for the template"
-    echo "  -h,  --help                 Display this help message"
+    echo "  --vmid <id>                    VM ID for the template"
+    echo "  --name <name>                  Name for the template"
+    echo "  --user <user>                  Set the cloud-init username"
+    echo "  --password <password>          Set the cloud-init password"
+    echo "  --storage <storage>            Proxmox storage for VM disk (default: local)"
+    echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
+    echo "  --bridge <bridge>              Network bridge for VM (default: vmbr0)"
+    echo "  --memory <mb>                  Memory in MB (default: 2048)"
+    echo "  --cores <num>                  Number of CPU cores (default: 4)"
+    echo "  --timezone <timezone>          Timezone (e.g., America/New_York, Europe/London)"
+    echo "  --keyboard <layout>            Keyboard layout (e.g., us, uk, de)"
+    echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, en_GB.UTF-8)"
+    echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
+    echo "  --disk-size <size>             Disk size (e.g., 32G, 50G)"
+    echo "  --disk-format <format>         Disk format: qcow2 (default), raw, or vmdk"
+    echo "  --disk-flags <flags>           Disk flags (default: discard=on)"
+    echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
+    echo "  --enable-root-login            Enable PermitRootLogin yes in SSH config (default: false)"
+    echo "  --enable-password-auth         Enable PasswordAuthentication yes in SSH config (default: false)"
+    echo "  -h,  --help                    Display this help message"
 }
 
 # Function to get the snippets path for a given Proxmox storage
@@ -92,14 +103,14 @@ get_snippet_path() {
             type="${BASH_REMATCH[1]}"
             continue
         fi
-        
+
         # Check if we're entering a new storage section
         if [[ "$line" =~ ^[a-z]+: ]]; then
             if [[ $in_section -eq 1 ]]; then
                 break
             fi
         fi
-        
+
         # Extract path and check for snippets if in our section
         if [[ $in_section -eq 1 ]]; then
             if [[ "$line" =~ ^[[:space:]]+path[[:space:]]+(.+)$ ]]; then
@@ -116,12 +127,12 @@ get_snippet_path() {
         echo "Error: Storage '$storage' not found or is not a supported storage type (dir, nfs, cifs, cephfs)." >&2
         return 1
     fi
-    
+
     if [[ $has_snippets -eq 0 ]]; then
         echo "Error: Storage '$storage' does not have 'snippets' in its content types." >&2
         return 1
     fi
-    
+
     if [[ -z "$path" ]]; then
         # Use default mount point for network storage
         if [[ "$type" == "nfs" || "$type" == "cifs" || "$type" == "cephfs" ]]; then
@@ -131,96 +142,72 @@ get_snippet_path() {
             return 1
         fi
     fi
-    
+
     echo "$path/snippets"
-}
-
-# Function to create cloud-init user-data file
-generate_ci_user_data() {
-    local user_data_file="${SNIPPETS_DIR}/ci-user-data-${VMID}.yml"
-    
-    echo "Creating cloud-init user-data snippet..."
-    
-    cat > "$user_data_file" <<EOF
-#cloud-config
-manage_etc_hosts: true
-preserve_hostname: true
-user: ${CI_USER}
-password: ${CI_PASSWORD}
-chpasswd:
-  expire: false
-users:
-  - default
-EOF
-
-    # Add locale if specified
-    if [[ -n "$LOCALE" ]]; then
-        echo "locale: ${LOCALE}" >> "$user_data_file"
-    fi
-
-    # Add timezone if specified
-    if [[ -n "$TIMEZONE" ]]; then
-        echo "timezone: ${TIMEZONE}" >> "$user_data_file"
-    fi
-
-    # Add keyboard if specified
-    if [[ -n "$KEYBOARD" ]]; then
-        cat >> "$user_data_file" <<EOF
-keyboard:
-  layout: ${KEYBOARD}
-EOF
-    fi
-
-    echo "Cloud-init user-data created at: $user_data_file"
 }
 
 # Function to create cloud-init vendor-data file
 generate_ci_vendor_data() {
     local vendor_data_file="${SNIPPETS_DIR}/ci-vendor-data-${VMID}.yml"
-    
+
     echo "Creating cloud-init vendor-data snippet..."
-    
-    # Add packages if specified
-    if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
-        cat > "$vendor_data_file" <<EOF
+
+    # Write YAML header and qemu-guest-agent package
+    cat > "$vendor_data_file" <<EOF
 #cloud-config
 package_update: true
 package_upgrade: true
+package_reboot_if_required: true
 packages:
   - qemu-guest-agent
 EOF
+    # Append extra packages if specified
+    if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
         for pkg in $PACKAGES_TO_INSTALL; do
             echo "  - $pkg" >> "$vendor_data_file"
         done
-    else
-        cat > "$vendor_data_file" <<EOF
-#cloud-config
-package_update: true
-package_upgrade: true
-packages:
-  - qemu-guest-agent
-EOF
     fi
 
-    # Add runcmd to enable qemu-guest-agent
-    cat >> "$vendor_data_file" <<EOF
-runcmd:
-  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-  - systemctl restart sshd
-  - systemctl enable qemu-guest-agent
-  - systemctl start qemu-guest-agent
-EOF
+    # Add runcmd to enable qemu-guest-agent and optionally SSH config changes
+    echo "runcmd:" >> "$vendor_data_file"
+    if [[ "$ENABLE_ROOT_LOGIN" == "true" ]]; then
+        echo "  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config" >> "$vendor_data_file"
+    fi
+    if [[ "$ENABLE_PASSWORD_AUTH" == "true" ]]; then
+        echo "  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config" >> "$vendor_data_file"
+    fi
 
-    echo "Cloud-init vendor-data created at: $vendor_data_file"
+    {
+        echo "  - systemctl restart sshd" 
+        echo "  - systemctl enable qemu-guest-agent"
+        echo "  - systemctl start qemu-guest-agent"
+    } >> "$vendor_data_file"
+
+    # Add locale if specified
+    if [[ -n "$LOCALE" ]]; then
+        echo "locale: ${LOCALE}" >> "$vendor_data_file"
+    fi
+
+    # Add timezone if specified
+    if [[ -n "$TIMEZONE" ]]; then
+        echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
+    fi
+
+    # Add keyboard if specified
+    if [[ -n "$KEYBOARD" ]]; then
+        cat >> "$vendor_data_file" <<EOF
+keyboard:
+  layout: ${KEYBOARD}
+EOF
+    fi
 }
 
 # Function to create cloud-init network-config file
 generate_ci_network_data() {
     local network_config_file="${SNIPPETS_DIR}/ci-network-data-${VMID}.yml"
-    
+
     echo "Creating cloud-init network-data snippet..."
-    
+
     cat > "$network_config_file" <<EOF
 #cloud-config
 network:
@@ -244,6 +231,8 @@ create_template() {
     local filename
     filename=$(basename "$url")
 
+    # Use DISK_FORMAT directly as the disk extension
+
     echo "--- Creating template $VM_NAME (VMID: $VMID) ---"
 
     # Ensure snippets directory exists
@@ -261,7 +250,8 @@ create_template() {
     fi
 
     # Create a working copy of the image
-    local working_image="${VM_NAME}.qcow2"
+    local ext="${filename##*.}"
+    local working_image="${VM_NAME}.${ext}"
     echo "Creating working copy of image..."
     cp "$filename" "$working_image"
 
@@ -272,7 +262,6 @@ create_template() {
     fi
 
     # Create cloud-init snippets
-    generate_ci_user_data
     generate_ci_vendor_data
     generate_ci_network_data
 
@@ -289,89 +278,165 @@ create_template() {
 
     # Import the downloaded disk to the VM's storage
     echo "Importing disk..."
-    qm importdisk "$VMID" "$working_image" "$STORAGE" --format qcow2
+    qm importdisk "$VMID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
 
     # Configure storage, boot, and cloud-init
     echo "Configuring storage and cloud-init..."
     qm set "$VMID" \
-        --scsihw virtio-scsi-single \
-        --scsi0 "$STORAGE:$VMID/vm-$VMID-disk-0.qcow2,discard=on,ssd=1" \
-        --boot order=scsi0 \
-        --ide0 "$STORAGE:cloudinit" \
-        --ipconfig0 ip=dhcp \
-        --ciuser "${CI_USER}" \
-        --cipassword "${CI_PASSWORD}" \
+        --scsihw "virtio-scsi-single" \
+        --scsi0 "$STORAGE:$VMID/vm-$VMID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
+        --boot "order=scsi0" \
+        --scsi1 "$STORAGE:cloudinit" \
+        --ciuser "$USER" \
+        --cipassword "$PASSWORD" \
         --ciupgrade 1 \
-        --cicustom "user=${SNIPPETS_STORAGE}:snippets/ci-user-data-${VMID}.yml,vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${VMID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${VMID}.yml"
-    
+        --ipconfig0 "ip6=auto,ip=dhcp" \
+        --sshkeys "$SSH_KEYS" \
+        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${VMID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${VMID}.yml"
+
     # Convert the VM to a template
     echo "Converting VM $VMID to a template..."
     qm template "$VMID"
 
+    # Cleanup working image
+    rm -f "$working_image"
+
     echo "--- Template $VM_NAME created successfully! ---"
 }
 
+# --- Parameter validation ---
+require_param() {
+    if [[ -z "$1" ]]; then
+        die "Missing required parameter: $2"
+    fi
+}
+
+require_file() {
+    if [[ ! -f "$1" ]]; then
+        die "File not found: $2 ($1)"
+    fi
+}
+
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+validate_args() {
+
+    # 1. Mutually exclusive/dependent options
+    if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
+        die "You must provide at least one of --password or --ssh-keys."
+    fi
+
+    # 2. Required parameters
+    require_param "$1" "distribution argument (debian|ubuntu)"
+    require_param "$VMID" "vmid (--vmid)"
+    require_param "$VM_NAME" "name (--name)"
+    require_param "$USER" "user (--user)"
+    require_param "$STORAGE" "storage (--storage)"
+    require_param "$BRIDGE" "bridge (--bridge)"
+
+    # 3. File existence
+    if [[ -n "$SSH_KEYS" ]]; then
+        require_file "$SSH_KEYS" "SSH keys file"
+    fi
+
+    # 4. Value validity
+    case "$DISK_FORMAT" in
+        qcow2|raw|vmdk) ;;
+        *)
+            die "Unsupported disk format '$DISK_FORMAT'. Supported: qcow2, raw, vmdk."
+            ;;
+    esac
+
+    # 5. VMID existence (after all other checks)
+    if qm status "$VMID" &>/dev/null; then
+        die "VMID $VMID already exists. Please choose a different VMID."
+    fi  
+}
+
 # --- Main script logic ---
+
 main() {
-    
     # Parse command-line options
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
-            -u|--user)
-                CI_USER="$2"
+            --user)
+                USER="$2"
                 shift 2
                 ;;
-            -p|--password)
-                CI_PASSWORD="$2"
+            --password)
+                PASSWORD="$2"
                 shift 2
                 ;;
-            -i|--install)
+            --install)
                 PACKAGES_TO_INSTALL="$2"
                 shift 2
                 ;;
-            -s|--storage)
+            --storage)
                 STORAGE="$2"
                 shift 2
                 ;;
-            -ss|--snippets-storage)
+            --snippets-storage)
                 SNIPPETS_STORAGE="$2"
                 shift 2
                 ;;
-            -b|--bridge)
+            --bridge)
                 BRIDGE="$2"
                 shift 2
                 ;;
-            -d|--disk-size)
+            --disk-size)
                 DISK_SIZE="$2"
                 shift 2
                 ;;
-            -m|--memory)
+            --memory)
                 MEMORY="$2"
                 shift 2
                 ;;
-            -c|--cores)
+            --cores)
                 CORES="$2"
                 shift 2
                 ;;
-            -t|--timezone)
+            --timezone)
                 TIMEZONE="$2"
                 shift 2
                 ;;
-            -k|--keyboard)
+            --keyboard)
                 KEYBOARD="$2"
                 shift 2
                 ;;
-            -l|--locale)
+            --locale)
                 LOCALE="$2"
                 shift 2
                 ;;
-            -v|--vmid)
+            --vmid)
                 VMID="$2"
                 shift 2
                 ;;
-            -n|--name)
+            --name)
                 VM_NAME="$2"
                 shift 2
+                ;;
+            --ssh-keys)
+                SSH_KEYS="$2"
+                shift 2
+                ;;
+            --disk-format)
+                DISK_FORMAT="$2"
+                shift 2
+                ;;
+            --disk-flags)
+                DISK_FLAGS="$2"
+                shift 2
+                ;;
+            --enable-root-login)
+                ENABLE_ROOT_LOGIN=true
+                shift
+                ;;
+            --enable-password-auth)
+                ENABLE_PASSWORD_AUTH=true
+                shift
                 ;;
             -h|--help)
                 usage
@@ -382,37 +447,9 @@ main() {
                 ;;
         esac
     done
-    
-    if [ "$#" -ne 1 ]; then
-        echo "Error: Distribution argument is required"
-        usage
-        exit 1
-    fi
 
-    if qm status "$VMID" &>/dev/null; then
-        echo "Error: VMID $VMID already exists. Please choose a different VMID."
-        exit 1
-    fi
-
-    # Check required parameters individually
-    local missing_params=()
-    
-    [[ -z "$CI_USER" ]] && missing_params+=("user (-u/--user)")
-    [[ -z "$CI_PASSWORD" ]] && missing_params+=("password (-p/--password)")
-    [[ -z "$STORAGE" ]] && missing_params+=("storage (-s/--storage)")
-    [[ -z "$BRIDGE" ]] && missing_params+=("bridge (-b/--bridge)")
-    [[ -z "$VMID" ]] && missing_params+=("vmid (-v/--vmid)")
-    [[ -z "$VM_NAME" ]] && missing_params+=("name (-n/--name)")
-    
-    if [ ${#missing_params[@]} -ne 0 ]; then
-        echo "Error: Missing required parameter(s):"
-        for param in "${missing_params[@]}"; do
-            echo "  - $param"
-        done
-        echo ""
-        usage
-        exit 1
-    fi
+    # Validate arguments after parsing
+    validate_args "$@"
 
     # Set SNIPPETS_STORAGE to STORAGE if not specified
     SNIPPETS_STORAGE="${SNIPPETS_STORAGE:-$STORAGE}"
