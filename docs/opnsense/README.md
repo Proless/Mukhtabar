@@ -344,6 +344,13 @@ Follow these steps:
 4. Remove any other DNS servers listed, unless you have a specific reason to keep them.
 5. Scroll down and click `Save` to apply your changes.
 
+To ensure Unbound can resolve internal hostnames on the network, you need to enable registration of DHCP leases and static mappings:
+
+1. Go to `Services` → `Unbound DNS` → `General` in the OPNsense Web UI.
+2. Under the **DHCP Registration** section, check both `Register DHCP Static Mappings` and `Register ISC DHCP4 Leases`. This allows Unbound to automatically resolve hostnames assigned via DHCP or static mappings.
+3. For best results, also check `Flush DNS Cache during reload` to ensure changes are immediately reflected in DNS lookups.
+4. Click `Apply` to save your changes.
+
 #### DHCP
 
 To enable a DHCP server on the LAN interface, navigate to `Services` → `Kea DHCP` → `Kea DHCPv4` in the OPNsense Web UI. Check the option `Enabled` to activate the DHCP server. In the `Interfaces` field, select `LAN` to specify which interface the DHCP server should listen on, click `Apply` to save and activate the DHCP server.
