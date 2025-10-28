@@ -50,13 +50,15 @@ quiet_run() {
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 [OPTIONS]"
+    echo "Usage: $0 <cloud-image-url> <id> <name> [OPTIONS]"
     echo "Creates a Proxmox VE template for a given Linux cloud image URL."
     echo ""
+    echo "Arguments:"
+    echo "  cloud-image-url                URL to the cloud image to use for the template (required)"
+    echo "  id                             ID for the template (required)"
+    echo "  name                           Name for the template (required)"
+    echo ""
     echo "Options:"
-    echo "  --cloud-image-url <url>        (Required) URL to the cloud image to use for the template"
-    echo "  --id <id>                      (Required) ID for the template"
-    echo "  --name <name>                  (Required) Name for the template"
     echo "  --user <user>                  Set the cloud-init username"
     echo "  --password <password>          Set the cloud-init password"
     echo "  --storage <storage>            Proxmox storage for VM disk (default: local-lvm)"
@@ -216,6 +218,7 @@ network:
       dhcp4: true
       dhcp4-overrides:
         use-dns: true
+        use-ntp: true
         use-domains: true
 EOF
 }
@@ -299,7 +302,7 @@ create_template() {
 # --- Parameter validation ---
 require_param() {
     if [[ -z "$1" ]]; then
-        die "Missing required parameter: $2"
+        die "Missing required argument: $2"
     fi
 }
 
@@ -315,24 +318,20 @@ die() {
 }
 
 validate_args() {
-
     # 1. Mutually exclusive/dependent options
     if [[ -n "$USER" ]]; then
         if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
             die "You must provide at least one of --password or --ssh-keys."
         fi
     fi
-
     # 2. Required parameters
-    require_param "$CLOUD_IMAGE_URL" "cloud image url (--cloud-image-url)"
-    require_param "$ID" "id (--id)"
-    require_param "$NAME" "name (--name)"
-
+    require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
+    require_param "$ID" "id (argument 2)"
+    require_param "$NAME" "name (argument 3)"
     # 3. File existence
     if [[ -n "$SSH_KEYS" ]]; then
         require_file "$SSH_KEYS" "SSH keys file"
     fi
-
     # 4. Value validity
     case "$DISK_FORMAT" in
         qcow2|raw|vmdk) ;;
@@ -340,7 +339,6 @@ validate_args() {
             die "Unsupported disk format '$DISK_FORMAT'. Supported: qcow2, raw, vmdk."
             ;;
     esac
-
     # 5. ID existence (after all other checks)
     if qm status "$ID" &>/dev/null; then
         die "ID $ID already exists. Please choose a different ID."
@@ -350,13 +348,19 @@ validate_args() {
 # --- Main script logic ---
 
 main() {
+    # Parse positional arguments
+    if [[ "$#" -lt 3 ]]; then
+        usage
+        exit 1
+    fi
+    CLOUD_IMAGE_URL="$1"
+    ID="$2"
+    NAME="$3"
+    shift 3
+
     # Parse command-line options
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
-            --cloud-image-url)
-                CLOUD_IMAGE_URL="$2"
-                shift 2
-                ;;
             --user)
                 USER="$2"
                 shift 2
@@ -403,14 +407,6 @@ main() {
                 ;;
             --locale)
                 LOCALE="$2"
-                shift 2
-                ;;
-            --id)
-                ID="$2"
-                shift 2
-                ;;
-            --name)
-                NAME="$2"
                 shift 2
                 ;;
             --ssh-keys)
