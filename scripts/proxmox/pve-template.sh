@@ -57,7 +57,7 @@ usage() {
     echo "  --cloud-image-url <url>        (Required) URL to the cloud image to use for the template"
     echo "  --id <id>                      (Required) ID for the template"
     echo "  --name <name>                  (Required) Name for the template"
-    echo "  --user <user>                  (Required) Set the cloud-init username"
+    echo "  --user <user>                  Set the cloud-init username"
     echo "  --password <password>          Set the cloud-init password"
     echo "  --storage <storage>            Proxmox storage for VM disk (default: local-lvm)"
     echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
@@ -317,15 +317,16 @@ die() {
 validate_args() {
 
     # 1. Mutually exclusive/dependent options
-    if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
-        die "You must provide at least one of --password or --ssh-keys."
+    if [[ -n "$USER" ]]; then
+        if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
+            die "You must provide at least one of --password or --ssh-keys."
+        fi
     fi
 
     # 2. Required parameters
     require_param "$CLOUD_IMAGE_URL" "cloud image url (--cloud-image-url)"
     require_param "$ID" "id (--id)"
     require_param "$NAME" "name (--name)"
-    require_param "$USER" "user (--user)"
 
     # 3. File existence
     if [[ -n "$SSH_KEYS" ]]; then
