@@ -7,10 +7,10 @@ set -e
 # --- Configuration ---
 
 # VM settings
-VMID=""                             # VM ID for the template
-VM_NAME=""                          # Name for the template
+ID=""                               # ID for the template
+NAME=""                             # Name for the template
 DISK_SIZE=""                        # Disk size for the VM (e.g., 32G)
-STORAGE="${STORAGE:-local}"         # The Proxmox storage where the VM disk will be allocated (default: local)
+STORAGE="${STORAGE:-local-lvm}"     # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
 BRIDGE="${BRIDGE:-vmbr0}"           # The Proxmox network bridge for the VM (default: vmbr0)
 MEMORY="2048"                       # Memory in MB (default: 2048)
 CORES="4"                           # Number of CPU cores (default: 4)
@@ -55,11 +55,11 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --cloud-image-url <url>        (Required) URL to the cloud image to use for the template"
-    echo "  --vmid <id>                    (Required) VM ID for the template"
+    echo "  --id <id>                      (Required) ID for the template"
     echo "  --name <name>                  (Required) Name for the template"
     echo "  --user <user>                  (Required) Set the cloud-init username"
     echo "  --password <password>          Set the cloud-init password"
-    echo "  --storage <storage>            Proxmox storage for VM disk (default: local)"
+    echo "  --storage <storage>            Proxmox storage for VM disk (default: local-lvm)"
     echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
     echo "  --bridge <bridge>              Network bridge for VM (default: vmbr0)"
     echo "  --memory <mb>                  Memory in MB (default: 2048)"
@@ -145,7 +145,7 @@ get_snippet_path() {
 
 # Function to create cloud-init vendor-data file
 generate_ci_vendor_data() {
-    local vendor_data_file="${SNIPPETS_DIR}/ci-vendor-data-${VMID}.yml"
+    local vendor_data_file="${SNIPPETS_DIR}/ci-vendor-data-${ID}.yml"
 
     echo "Creating cloud-init vendor-data snippet..."
 
@@ -201,7 +201,7 @@ EOF
 
 # Function to create cloud-init network-config file
 generate_ci_network_data() {
-    local network_config_file="${SNIPPETS_DIR}/ci-network-data-${VMID}.yml"
+    local network_config_file="${SNIPPETS_DIR}/ci-network-data-${ID}.yml"
 
     echo "Creating cloud-init network-data snippet..."
 
@@ -226,7 +226,7 @@ create_template() {
     local filename
     filename=$(basename "$url")
 
-    echo "--- Creating template $VM_NAME (VMID: $VMID) ---"
+    echo "--- Creating template $NAME (ID: $ID) ---"
 
     # Ensure snippets directory exists
     if [ ! -d "$SNIPPETS_DIR" ]; then
@@ -244,7 +244,7 @@ create_template() {
 
     # Create a working copy of the image
     local ext="${filename##*.}"
-    local working_image="${VM_NAME}.${ext}"
+    local working_image="${NAME}.${ext}"
     cp "$filename" "$working_image"
 
     # Resize disk if size specified
@@ -258,8 +258,8 @@ create_template() {
     generate_ci_network_data
 
     # Create a new VM with basic configuration
-    echo "Creating VM $VMID..."
-    qm create "$VMID" --name "$VM_NAME" \
+    echo "Creating VM $ID..."
+    qm create "$ID" --name "$NAME" \
         --memory "$MEMORY" \
         --cpu host \
         --cores "$CORES" \
@@ -270,13 +270,13 @@ create_template() {
 
     # Import the downloaded disk to the VM's storage
     echo "Importing disk..."
-    quiet_run qm importdisk "$VMID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
+    quiet_run qm importdisk "$ID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
 
     # Configure storage, boot, and cloud-init
     echo "Configuring storage and cloud-init..."
-    quiet_run qm set "$VMID" \
+    quiet_run qm set "$ID" \
         --scsihw "virtio-scsi-single" \
-        --scsi0 "$STORAGE:$VMID/vm-$VMID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
+        --scsi0 "$STORAGE:$ID/vm-$ID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
         --boot "order=scsi0" \
         --scsi1 "$STORAGE:cloudinit" \
         --ciuser "$USER" \
@@ -284,16 +284,16 @@ create_template() {
         --ciupgrade 1 \
         --ipconfig0 "ip6=auto,ip=dhcp" \
         --sshkeys "$SSH_KEYS" \
-        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${VMID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${VMID}.yml"
+        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${ID}.yml"
 
     # Convert the VM to a template
-    echo "Converting VM $VMID to a template..."
-    quiet_run qm template "$VMID"
+    echo "Converting VM $ID to a template..."
+    quiet_run qm template "$ID"
 
     # Cleanup working image
     rm -f "$working_image"
 
-    echo "--- Template $VM_NAME created successfully! ---"
+    echo "--- Template $NAME created successfully! ---"
 }
 
 # --- Parameter validation ---
@@ -323,8 +323,8 @@ validate_args() {
 
     # 2. Required parameters
     require_param "$CLOUD_IMAGE_URL" "cloud image url (--cloud-image-url)"
-    require_param "$VMID" "vmid (--vmid)"
-    require_param "$VM_NAME" "name (--name)"
+    require_param "$ID" "id (--id)"
+    require_param "$NAME" "name (--name)"
     require_param "$USER" "user (--user)"
 
     # 3. File existence
@@ -340,9 +340,9 @@ validate_args() {
             ;;
     esac
 
-    # 5. VMID existence (after all other checks)
-    if qm status "$VMID" &>/dev/null; then
-        die "VMID $VMID already exists. Please choose a different VMID."
+    # 5. ID existence (after all other checks)
+    if qm status "$ID" &>/dev/null; then
+        die "ID $ID already exists. Please choose a different ID."
     fi  
 }
 
@@ -404,12 +404,12 @@ main() {
                 LOCALE="$2"
                 shift 2
                 ;;
-            --vmid)
-                VMID="$2"
+            --id)
+                ID="$2"
                 shift 2
                 ;;
             --name)
-                VM_NAME="$2"
+                NAME="$2"
                 shift 2
                 ;;
             --ssh-keys)
