@@ -203,7 +203,7 @@ EOF
 
 # Function to create cloud-init network-config file
 generate_ci_network_data() {
-    local network_config_file="${SNIPPETS_DIR}/ci-network-data-${ID}.yml"
+    local network_config_file="${SNIPPETS_DIR}/ci-network-data.yml"
 
     echo "Creating cloud-init network-data snippet..."
 
@@ -287,7 +287,7 @@ create_template() {
         --ciupgrade 1 \
         --ipconfig0 "ip6=auto,ip=dhcp" \
         --sshkeys "$SSH_KEYS" \
-        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${ID}.yml"
+        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data.yml"
 
     # Convert the VM to a template
     echo "Converting VM $ID to a template..."
