@@ -38,13 +38,8 @@ PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
 SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as STORAGE)
 SNIPPETS_DIR=""                     # Will be auto-detected from SNIPPETS_STORAGE
 
-# --- Image URLs ---
-
-# Debian 12 (Bookworm)
-DEBIAN_IMAGE_URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
-
-# Ubuntu 24.04 (Noble Numbat)
-UBUNTU_IMAGE_URL="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+# --- Cloud Image URL (required) ---
+CLOUD_IMAGE_URL=""
 
 # --- Functions ---
 
@@ -55,17 +50,14 @@ quiet_run() {
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 [OPTIONS] <distro>"
-    echo "Creates a Proxmox VE template for a given Linux distribution using cloud images"
-    echo ""
-    echo "Supported distributions:"
-    echo "  debian"
-    echo "  ubuntu"
+    echo "Usage: $0 [OPTIONS]"
+    echo "Creates a Proxmox VE template for a given Linux cloud image URL."
     echo ""
     echo "Options:"
-    echo "  --vmid <id>                    VM ID for the template"
-    echo "  --name <name>                  Name for the template"
-    echo "  --user <user>                  Set the cloud-init username"
+    echo "  --cloud-image-url <url>        (Required) URL to the cloud image to use for the template"
+    echo "  --vmid <id>                    (Required) VM ID for the template"
+    echo "  --name <name>                  (Required) Name for the template"
+    echo "  --user <user>                  (Required) Set the cloud-init username"
     echo "  --password <password>          Set the cloud-init password"
     echo "  --storage <storage>            Proxmox storage for VM disk (default: local)"
     echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
@@ -330,7 +322,7 @@ validate_args() {
     fi
 
     # 2. Required parameters
-    require_param "$1" "distribution argument (debian|ubuntu)"
+    require_param "$CLOUD_IMAGE_URL" "cloud image url (--cloud-image-url)"
     require_param "$VMID" "vmid (--vmid)"
     require_param "$VM_NAME" "name (--name)"
     require_param "$USER" "user (--user)"
@@ -360,6 +352,10 @@ main() {
     # Parse command-line options
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
+            --cloud-image-url)
+                CLOUD_IMAGE_URL="$2"
+                shift 2
+                ;;
             --user)
                 USER="$2"
                 shift 2
@@ -447,7 +443,7 @@ main() {
     done
 
     # Validate arguments after parsing
-    validate_args "$@"
+    validate_args
 
     # Set SNIPPETS_STORAGE to STORAGE if not specified
     SNIPPETS_STORAGE="${SNIPPETS_STORAGE:-$STORAGE}"
@@ -455,19 +451,7 @@ main() {
     # Auto-detect snippets directory and install dependencies
     SNIPPETS_DIR=$(get_snippet_path "$SNIPPETS_STORAGE")
 
-    case "$1" in
-        debian)
-            create_template "$DEBIAN_IMAGE_URL"
-            ;;
-        ubuntu)
-            create_template "$UBUNTU_IMAGE_URL"
-            ;;
-        *)
-            echo "Error: Unsupported distribution '$1'"
-            usage
-            exit 1
-            ;;
-    esac
+    create_template "$CLOUD_IMAGE_URL"
 }
 
 # Run the main function with all script arguments
