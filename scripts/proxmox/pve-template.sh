@@ -245,7 +245,7 @@ create_template() {
     # Download the cloud image
     if [ ! -f "$filename" ]; then
         echo "Downloading image from $url..."
-        quiet_run wget -O "$filename" "$url"
+        wget -q --show-progress -O "$filename" "$url"
     else
         echo "Image $filename already exists. Skipping download"
     fi
