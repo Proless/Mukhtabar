@@ -27,16 +27,16 @@ PASSWORD=""
 SSH_KEYS=""
 
 # Localization settings
-TIMEZONE=""             # Timezone (e.g., America/New_York, Europe/London)
-KEYBOARD=""             # Keyboard layout (e.g., us, uk, de)
-LOCALE=""               # Locale (e.g., en_US.UTF-8, en_GB.UTF-8)
+TIMEZONE=""                         # Timezone (e.g., America/New_York, Europe/London)
+KEYBOARD=""                         # Keyboard layout (e.g., us, uk, de)
+LOCALE=""                           # Locale (e.g., en_US.UTF-8, en_GB.UTF-8)
 
-# Packages to install inside the VM template
-PACKAGES_TO_INSTALL=""
+# Other settings
+PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
 
 # Snippets storage for cloud-init configs
-SNIPPETS_STORAGE=""     # Storage where snippets are stored (default: same as STORAGE)
-SNIPPETS_DIR=""         # Will be auto-detected from SNIPPETS_STORAGE
+SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as STORAGE)
+SNIPPETS_DIR=""                     # Will be auto-detected from SNIPPETS_STORAGE
 
 # --- Image URLs ---
 
@@ -47,6 +47,11 @@ DEBIAN_IMAGE_URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-1
 UBUNTU_IMAGE_URL="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 
 # --- Functions ---
+
+# Function to run a command quietly (suppress output)
+quiet_run() {
+    "$@" >/dev/null
+}
 
 # Function to display usage information
 usage() {
@@ -221,8 +226,6 @@ network:
         use-dns: true
         use-domains: true
 EOF
-
-    echo "Cloud-init network-config created at: $network_config_file"
 }
 
 # Function to create the VM template
@@ -230,8 +233,6 @@ create_template() {
     local url=$1
     local filename
     filename=$(basename "$url")
-
-    # Use DISK_FORMAT directly as the disk extension
 
     echo "--- Creating template $VM_NAME (VMID: $VMID) ---"
 
@@ -244,7 +245,7 @@ create_template() {
     # Download the cloud image
     if [ ! -f "$filename" ]; then
         echo "Downloading image from $url..."
-        wget -O "$filename" "$url"
+        quiet_run wget -O "$filename" "$url"
     else
         echo "Image $filename already exists. Skipping download"
     fi
@@ -252,13 +253,12 @@ create_template() {
     # Create a working copy of the image
     local ext="${filename##*.}"
     local working_image="${VM_NAME}.${ext}"
-    echo "Creating working copy of image..."
     cp "$filename" "$working_image"
 
     # Resize disk if size specified
     if [[ -n "$DISK_SIZE" ]]; then
         echo "Resizing disk to $DISK_SIZE..."
-        qemu-img resize "$working_image" "$DISK_SIZE"
+        quiet_run qemu-img resize "$working_image" "$DISK_SIZE"
     fi
 
     # Create cloud-init snippets
@@ -278,11 +278,11 @@ create_template() {
 
     # Import the downloaded disk to the VM's storage
     echo "Importing disk..."
-    qm importdisk "$VMID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
+    quiet_run qm importdisk "$VMID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
 
     # Configure storage, boot, and cloud-init
     echo "Configuring storage and cloud-init..."
-    qm set "$VMID" \
+    quiet_run qm set "$VMID" \
         --scsihw "virtio-scsi-single" \
         --scsi0 "$STORAGE:$VMID/vm-$VMID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
         --boot "order=scsi0" \
@@ -296,7 +296,7 @@ create_template() {
 
     # Convert the VM to a template
     echo "Converting VM $VMID to a template..."
-    qm template "$VMID"
+    quiet_run qm template "$VMID"
 
     # Cleanup working image
     rm -f "$working_image"
@@ -334,8 +334,6 @@ validate_args() {
     require_param "$VMID" "vmid (--vmid)"
     require_param "$VM_NAME" "name (--name)"
     require_param "$USER" "user (--user)"
-    require_param "$STORAGE" "storage (--storage)"
-    require_param "$BRIDGE" "bridge (--bridge)"
 
     # 3. File existence
     if [[ -n "$SSH_KEYS" ]]; then
