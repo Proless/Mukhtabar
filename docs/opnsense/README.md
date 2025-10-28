@@ -334,6 +334,16 @@ To configure Unbound DNS:
 ![OPNsense Unbound Service](image/unbound_dns_server.png "OPNsense Unbound Service")
 (_Note: You can add multiple DNS servers to Unbound without any issues_)
 
+To ensure Unbound can resolve internal hostnames on the network, you need to enable registration of DHCP leases and static mappings:
+
+1. Go to `Services` → `Unbound DNS` → `General` in the OPNsense Web UI.
+2. Under the **DHCP Registration** section, check both `Register DHCP Static Mappings` and `Register ISC DHCP4 Leases`. This allows Unbound to automatically resolve hostnames assigned via DHCP or static mappings.
+3. Also check `Flush DNS Cache during reload` to ensure changes are immediately reflected in DNS lookups.
+4. Click `Apply` to save the changes.
+5. Go to `Services` → `Unbound DNS` → `Advanced`.
+6. Under **Cache Settings**, set the option `TTL for Host Cache entries` to `60`.
+7. Click `Apply` again to save the changes.
+
 To use Unbound as the central DNS server for the network, you need to update the system's general DNS settings to ensure all DNS queries are handled locally by OPNsense. This setup allows OPNsense to resolve internal hostnames, apply DNS overrides, and forward external queries to your preferred public DNS servers.
 
 Follow these steps:
@@ -343,13 +353,6 @@ Follow these steps:
 3. Check the option `Prefer to use IPv4 even if IPv6 is available`. This ensures that DNS queries will use IPv4 by default, which can help avoid issues in environments where IPv6 is not fully configured or supported.
 4. Remove any other DNS servers listed, unless you have a specific reason to keep them.
 5. Scroll down and click `Save` to apply your changes.
-
-To ensure Unbound can resolve internal hostnames on the network, you need to enable registration of DHCP leases and static mappings:
-
-1. Go to `Services` → `Unbound DNS` → `General` in the OPNsense Web UI.
-2. Under the **DHCP Registration** section, check both `Register DHCP Static Mappings` and `Register ISC DHCP4 Leases`. This allows Unbound to automatically resolve hostnames assigned via DHCP or static mappings.
-3. For best results, also check `Flush DNS Cache during reload` to ensure changes are immediately reflected in DNS lookups.
-4. Click `Apply` to save your changes.
 
 #### DHCP
 
