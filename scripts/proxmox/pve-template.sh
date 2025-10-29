@@ -256,7 +256,6 @@ generate_ci_network_data() {
     echo "Creating cloud-init network-data snippet..."
 
     cat > "$network_config_file" <<EOF
-#cloud-config
 network:
   version: 2
   ethernets:
