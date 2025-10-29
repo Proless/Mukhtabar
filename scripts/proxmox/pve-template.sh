@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
 # A script to create Proxmox VE templates for various Linux distributions.
 
@@ -76,7 +76,7 @@ usage() {
     echo "  --keyboard <layout>            Keyboard layout (e.g., us, uk, de)"
     echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, en_GB.UTF-8)"
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
-    echo "  --disk-size <size>             Disk size (e.g., 32G, 50G)"
+    echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
     echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
     echo "  --disk-flags <flags>           Disk flags (default: discard=on)"
     echo "  --install <packages>           Quoted Space-separated list of packages to install in the template using cloud-init"
@@ -134,7 +134,7 @@ parse_storage_config() {
 
     # Validate results
     if [[ $in_section -eq 0 ]]; then
-        echo "Error: Storage '$storage' not found in configuration." >&2
+        echo "Error: Storage '$storage' not found or is not supported." >&2
         return 1
     fi
 
@@ -182,6 +182,8 @@ parse_storage_config() {
         
         # Construct full path
         snippets_dir="${path}/${relative_dir}"
+
+        mkdir -p "$snippets_dir"
     fi
 
     # Store configuration in associative array
@@ -217,7 +219,8 @@ packages:
 EOF
     # Append extra packages if specified
     if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
-        for pkg in $PACKAGES_TO_INSTALL; do
+        IFS=' ' read -ra pkg_array <<< "$PACKAGES_TO_INSTALL"
+        for pkg in "${pkg_array[@]}"; do
             echo "  - $pkg" >> "$vendor_data_file"
         done
     fi
@@ -279,7 +282,7 @@ create_template() {
     echo "--- Creating template $NAME (ID: $ID) ---"
 
     # Download the cloud image
-    if [ ! -f "$filename" ]; then
+    if [[ ! -f "$filename" ]]; then
         echo "Downloading image from $url..."
         wget -q --show-progress -O "$filename" "$url"
     else
