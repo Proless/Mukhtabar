@@ -29,9 +29,9 @@ PASSWORD=""
 SSH_KEYS=""
 
 # Localization settings
-TIMEZONE=""                         # Timezone (e.g., America/New_York, Europe/London)
-KEYBOARD=""                         # Keyboard layout (e.g., us, uk, de)
-LOCALE=""                           # Locale (e.g., en_US.UTF-8, en_GB.UTF-8)
+TIMEZONE=""                         # Timezone
+KEYBOARD=""                         # Keyboard layout
+LOCALE=""                           # Locale
 
 # Other settings
 PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
@@ -74,7 +74,7 @@ usage() {
     echo "  --cores <num>                  Number of CPU cores (default: 4)"
     echo "  --timezone <timezone>          Timezone (e.g., America/New_York, Europe/London)"
     echo "  --keyboard <layout>            Keyboard layout (e.g., us, uk, de)"
-    echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, en_GB.UTF-8)"
+    echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, de_DE.UTF-8)"
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
     echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
@@ -224,7 +224,7 @@ EOF
             echo "  - $pkg" >> "$vendor_data_file"
         done
     fi
-
+    
     [[ -n "$LOCALE" ]] && echo "locale: ${LOCALE}" >> "$vendor_data_file"
     [[ -n "$TIMEZONE" ]] && echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
     [[ -n "$KEYBOARD" ]] && cat >> "$vendor_data_file" <<EOF
@@ -242,7 +242,7 @@ EOF
     fi
 
     {
-        echo "  - systemctl restart sshd" 
+        echo "  - systemctl restart sshd"
         echo "  - systemctl enable qemu-guest-agent"
         echo "  - systemctl start qemu-guest-agent"
     } >> "$vendor_data_file"
@@ -340,7 +340,7 @@ create_template() {
         --boot "order=scsi0"
         --scsi1 "$disk_storage:cloudinit"
         --ciupgrade 1
-        --ipconfig0 "ip6=auto,ip=dhcp"
+        --ipconfig0 "ip=dhcp"
         --cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml,network=${snippets_storage}:snippets/ci-network-data-${ID}.yml"
     )
     
@@ -549,7 +549,7 @@ main() {
     # Parse storage configuration
     parse_storage_config "$STORAGE" DISK_STORAGE_CONFIG
     if [[ "$SNIPPETS_STORAGE" == "$STORAGE" ]]; then
-        # Copy associative array by iterating over keys
+        # Copy storage config
         for key in "${!DISK_STORAGE_CONFIG[@]}"; do
             SNIPPETS_STORAGE_CONFIG["$key"]="${DISK_STORAGE_CONFIG[$key]}"
         done
