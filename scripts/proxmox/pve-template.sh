@@ -4,14 +4,16 @@
 
 set -e
 
+declare -A DISK_STORAGE_CONFIG=()
+declare -A SNIPPETS_STORAGE_CONFIG=()
+
 # --- Configuration ---
 
 # VM settings
 ID=""                               # ID for the template
 NAME=""                             # Name for the template
 DISK_SIZE=""                        # Disk size for the VM (e.g., 32G)
-STORAGE="${STORAGE:-local-lvm}"     # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
-BRIDGE="${BRIDGE:-vmbr0}"           # The Proxmox network bridge for the VM (default: vmbr0)
+BRIDGE="vmbr0"                      # The Proxmox network bridge for the VM (default: vmbr0)
 MEMORY="2048"                       # Memory in MB (default: 2048)
 CORES="4"                           # Number of CPU cores (default: 4)
 DISK_FORMAT="qcow2"                 # Disk format: qcow2 (default), raw, or vmdk
@@ -34,9 +36,9 @@ LOCALE=""                           # Locale (e.g., en_US.UTF-8, en_GB.UTF-8)
 # Other settings
 PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
 
-# Snippets storage for cloud-init configs
+# Storage
+STORAGE="local-lvm"                 # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
 SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as STORAGE)
-SNIPPETS_DIR=""                     # Will be auto-detected from SNIPPETS_STORAGE
 
 # --- Cloud Image URL (required) ---
 CLOUD_IMAGE_URL=""
@@ -45,7 +47,10 @@ CLOUD_IMAGE_URL=""
 
 # Function to run a command quietly (suppress output)
 quiet_run() {
-    "$@" >/dev/null
+    "$@" >/dev/null 2>&1 || {
+        echo "Command failed: $*" >&2
+        exit 1
+    }
 }
 
 # Function to display usage information
@@ -72,17 +77,19 @@ usage() {
     echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, en_GB.UTF-8)"
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G)"
-    echo "  --disk-format <format>         Disk format: qcow2 (default), raw, or vmdk"
+    echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
     echo "  --disk-flags <flags>           Disk flags (default: discard=on)"
-    echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
+    echo "  --install <packages>           Quoted Space-separated list of packages to install in the template using cloud-init"
     echo "  --enable-root-login            Enable PermitRootLogin yes in SSH config (default: false)"
     echo "  --enable-password-auth         Enable PasswordAuthentication yes in SSH config (default: false)"
     echo "  -h,  --help                    Display this help message"
 }
 
-# Function to get the snippets path for a given Proxmox storage
-get_snippet_path() {
+# Function to parse Proxmox storage configuration and extract information
+parse_storage_config() {
     local storage="$1"
+    local -n storage_config="$2"
+
     local cfg="/etc/pve/storage.cfg"
 
     if [[ ! -f "$cfg" ]]; then
@@ -90,17 +97,19 @@ get_snippet_path() {
         return 1
     fi
 
-    # Parse storage.cfg to find the storage section and extract path
+    # Initialize variables
     local in_section=0
+    local storage_type=""
     local path=""
-    local has_snippets=0
-    local type=""
+    local content=""
+    local content_dirs=""
 
+    # Parse storage.cfg to find the storage section and extract information
     while IFS= read -r line; do
         # Check if this is our storage header
-        if [[ "$line" =~ ^(dir|nfs|cifs|cephfs):[[:space:]]+${storage}$ ]]; then
+        if [[ "$line" =~ ^(dir|nfs|cifs|cephfs|lvmthin|zfspool):[[:space:]]+${storage}$ ]]; then
             in_section=1
-            type="${BASH_REMATCH[1]}"
+            storage_type="${BASH_REMATCH[1]}"
             continue
         fi
 
@@ -111,44 +120,89 @@ get_snippet_path() {
             fi
         fi
 
-        # Extract path and check for snippets if in our section
+        # Extract properties if in our section
         if [[ $in_section -eq 1 ]]; then
             if [[ "$line" =~ ^[[:space:]]+path[[:space:]]+(.+)$ ]]; then
                 path="${BASH_REMATCH[1]}"
-            fi
-            if [[ "$line" =~ ^[[:space:]]+content[[:space:]]+ ]] && [[ "$line" == *"snippets"* ]]; then
-                has_snippets=1
+            elif [[ "$line" =~ ^[[:space:]]+content[[:space:]]+(.+)$ ]]; then
+                content="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^[[:space:]]+content-dirs[[:space:]]+(.+)$ ]]; then
+                content_dirs="${BASH_REMATCH[1]}"
             fi
         fi
     done < "$cfg"
 
     # Validate results
     if [[ $in_section -eq 0 ]]; then
-        echo "Error: Storage '$storage' not found or is not a supported storage type (dir, nfs, cifs, cephfs)." >&2
+        echo "Error: Storage '$storage' not found in configuration." >&2
         return 1
     fi
 
-    if [[ $has_snippets -eq 0 ]]; then
-        echo "Error: Storage '$storage' does not have 'snippets' in its content types." >&2
-        return 1
+    # For network storage types, default to /mnt/pve/<storage> if path is empty
+    if [[ "$storage_type" =~ ^(nfs|cifs|cephfs)$ ]] && [[ -z "$path" ]]; then
+        path="/mnt/pve/$storage"
     fi
 
-    if [[ -z "$path" ]]; then
-        # Use default mount point for network storage
-        if [[ "$type" == "nfs" || "$type" == "cifs" || "$type" == "cephfs" ]]; then
-            path="/mnt/pve/$storage"
-        else
-            echo "Error: Could not determine path for storage '$storage'." >&2
-            return 1
+    # Check if storage supports images
+    local supports_images="false"
+    local image_formats=""
+    if [[ "$content" == *"images"* ]]; then
+        supports_images="true"
+        
+        # Set supported image formats based on storage type
+        case "$storage_type" in
+            dir)
+                image_formats="raw,qcow2,vmdk,subvol"
+                ;;
+            nfs|cifs)
+                image_formats="raw,qcow2,vmdk"
+                ;;
+            lvmthin)
+                image_formats="raw"
+                ;;
+            zfspool)
+                image_formats="raw,subvol"
+                ;;
+        esac
+    fi
+
+    # Check if storage supports snippets
+    local supports_snippets="false"
+    local snippets_dir=""
+    if [[ "$content" == *"snippets"* && -n "$path" ]]; then
+        supports_snippets="true"
+
+        # Determine snippets directory
+        local relative_dir="snippets"
+        
+        # Check if content-dirs has a custom snippets path
+        if [[ -n "$content_dirs" ]] && [[ "$content_dirs" =~ snippets=([^,]+) ]]; then
+            relative_dir="${BASH_REMATCH[1]}"
         fi
+        
+        # Construct full path
+        snippets_dir="${path}/${relative_dir}"
     fi
 
-    echo "$path/snippets"
+    # Store configuration in associative array
+    storage_config["name"]="$storage"
+    storage_config["type"]="$storage_type"
+    storage_config["path"]="$path"
+    storage_config["content"]="$content"
+    storage_config["content_dirs"]="$content_dirs"
+    storage_config["supports_images"]="$supports_images"
+    storage_config["image_formats"]="$image_formats"
+    storage_config["supports_snippets"]="$supports_snippets"
+    # shellcheck disable=SC2034
+    storage_config["snippets_dir"]="$snippets_dir"
+
+    return 0
 }
 
 # Function to create cloud-init vendor-data file
 generate_ci_vendor_data() {
-    local vendor_data_file="${SNIPPETS_DIR}/ci-vendor-data-${ID}.yml"
+    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
+    local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
 
     echo "Creating cloud-init vendor-data snippet..."
 
@@ -168,6 +222,13 @@ EOF
         done
     fi
 
+    [[ -n "$LOCALE" ]] && echo "locale: ${LOCALE}" >> "$vendor_data_file"
+    [[ -n "$TIMEZONE" ]] && echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
+    [[ -n "$KEYBOARD" ]] && cat >> "$vendor_data_file" <<EOF
+keyboard:
+  layout: ${KEYBOARD}
+EOF
+
     # Add runcmd to enable qemu-guest-agent and optionally SSH config changes
     echo "runcmd:" >> "$vendor_data_file"
     if [[ "$ENABLE_ROOT_LOGIN" == "true" ]]; then
@@ -182,29 +243,12 @@ EOF
         echo "  - systemctl enable qemu-guest-agent"
         echo "  - systemctl start qemu-guest-agent"
     } >> "$vendor_data_file"
-
-    # Add locale if specified
-    if [[ -n "$LOCALE" ]]; then
-        echo "locale: ${LOCALE}" >> "$vendor_data_file"
-    fi
-
-    # Add timezone if specified
-    if [[ -n "$TIMEZONE" ]]; then
-        echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
-    fi
-
-    # Add keyboard if specified
-    if [[ -n "$KEYBOARD" ]]; then
-        cat >> "$vendor_data_file" <<EOF
-keyboard:
-  layout: ${KEYBOARD}
-EOF
-    fi
 }
 
 # Function to create cloud-init network-config file
 generate_ci_network_data() {
-    local network_config_file="${SNIPPETS_DIR}/ci-network-data-${ID}.yml"
+    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
+    local network_config_file="${snippets_dir}/ci-network-data-${ID}.yml"
 
     echo "Creating cloud-init network-data snippet..."
 
@@ -228,15 +272,11 @@ EOF
 create_template() {
     local url=$1
     local filename
+    local snippets_storage="${SNIPPETS_STORAGE_CONFIG[name]}"
+    local disk_storage="${DISK_STORAGE_CONFIG[name]}"
     filename=$(basename "$url")
 
     echo "--- Creating template $NAME (ID: $ID) ---"
-
-    # Ensure snippets directory exists
-    if [ ! -d "$SNIPPETS_DIR" ]; then
-        echo "Creating snippets directory at $SNIPPETS_DIR..."
-        mkdir -p "$SNIPPETS_DIR"
-    fi
 
     # Download the cloud image
     if [ ! -f "$filename" ]; then
@@ -263,7 +303,7 @@ create_template() {
 
     # Create a new VM with basic configuration
     echo "Creating VM $ID..."
-    qm create "$ID" --name "$NAME" \
+    quiet_run qm create "$ID" --name "$NAME" \
         --memory "$MEMORY" \
         --cpu host \
         --cores "$CORES" \
@@ -274,21 +314,47 @@ create_template() {
 
     # Import the downloaded disk to the VM's storage
     echo "Importing disk..."
-    quiet_run qm importdisk "$ID" "$working_image" "$STORAGE" --format "$DISK_FORMAT"
+    quiet_run qm importdisk "$ID" "$working_image" "$disk_storage" --format "$DISK_FORMAT"
 
     # Configure storage, boot, and cloud-init
     echo "Configuring storage and cloud-init..."
-    quiet_run qm set "$ID" \
-        --scsihw "virtio-scsi-single" \
-        --scsi0 "$STORAGE:$ID/vm-$ID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
-        --boot "order=scsi0" \
-        --scsi1 "$STORAGE:cloudinit" \
-        --ciuser "$CI_USER" \
-        --cipassword "$PASSWORD" \
-        --ciupgrade 1 \
-        --ipconfig0 "ip6=auto,ip=dhcp" \
-        --sshkeys "$SSH_KEYS" \
-        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${ID}.yml"
+    
+    # Build disk path based on storage type
+    local disk_path
+    local storage_type="${DISK_STORAGE_CONFIG[type]}"
+    if [[ "$storage_type" =~ ^(lvmthin|zfspool)$ ]]; then
+        # Block storage types use simple format: storage:vm-ID-disk-N
+        disk_path="$disk_storage:vm-$ID-disk-0"
+    else
+        # Directory-based storage types use: storage:ID/vm-ID-disk-N.format
+        disk_path="$disk_storage:$ID/vm-$ID-disk-0.${DISK_FORMAT}"
+    fi
+    
+    # Build qm set command with conditional cloud-init parameters
+    local qm_cmd=(qm set "$ID"
+        --scsihw "virtio-scsi-single"
+        --scsi0 "${disk_path},${DISK_FLAGS}"
+        --boot "order=scsi0"
+        --scsi1 "$disk_storage:cloudinit"
+        --ciupgrade 1
+        --ipconfig0 "ip6=auto,ip=dhcp"
+        --cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml,network=${snippets_storage}:snippets/ci-network-data-${ID}.yml"
+    )
+    
+    # Add cloud-init user settings if user is specified
+    if [[ -n "$CI_USER" ]]; then
+        qm_cmd+=(--ciuser "$CI_USER")
+        
+        if [[ -n "$PASSWORD" ]]; then
+            qm_cmd+=(--cipassword "$PASSWORD")
+        fi
+        
+        if [[ -n "$SSH_KEYS" ]]; then
+            qm_cmd+=(--sshkeys "$SSH_KEYS")
+        fi
+    fi
+    
+    quiet_run "${qm_cmd[@]}"
 
     # Convert the VM to a template
     echo "Converting VM $ID to a template..."
@@ -298,6 +364,11 @@ create_template() {
     rm -f "$working_image"
 
     echo "--- Template $NAME created successfully! ---"
+}
+
+die() {
+    echo "Error: $*" >&2
+    exit 1
 }
 
 # --- Parameter validation ---
@@ -313,40 +384,51 @@ require_file() {
     fi
 }
 
-die() {
-    echo "Error: $*" >&2
-    exit 1
-}
-
 validate_args() {
-    # 1. Mutually exclusive/dependent options
+    
+    require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
+    require_param "$ID" "id (argument 2)"
+    require_param "$NAME" "name (argument 3)"
+    
     if [[ -n "$CI_USER" ]]; then
         if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
             die "You must provide at least one of --password or --ssh-keys when --user is specified"
         fi
+
+        # If SSH keys provided, check file existence
+        if [[ -n "$SSH_KEYS" ]]; then
+            require_file "$SSH_KEYS" "SSH keys file"
+
+            if [[ ! -s "$SSH_KEYS" ]]; then
+                die "SSH keys file '$SSH_KEYS' is empty"
+            fi
+        fi
+
     else
-        echo "Warning: No cloud-init user provided; using distro default"
+        echo "Warning: No cloud-init user provided"
     fi
     
-    # 2. Required parameters
-    require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
-    require_param "$ID" "id (argument 2)"
-    require_param "$NAME" "name (argument 3)"
-    # 3. File existence
-    if [[ -n "$SSH_KEYS" ]]; then
-        require_file "$SSH_KEYS" "SSH keys file"
-    fi
-    # 4. Value validity
-    case "$DISK_FORMAT" in
-        qcow2|raw|vmdk) ;;
-        *)
-            die "Unsupported disk format '$DISK_FORMAT'. Supported: qcow2, raw, vmdk"
-            ;;
-    esac
-    # 5. ID existence (after all other checks)
     if qm status "$ID" &>/dev/null; then
         die "ID $ID already exists. Please choose a different ID."
     fi  
+}
+
+validate_storage() {
+    # Validate disk storage supports images
+    if [[ "${DISK_STORAGE_CONFIG[supports_images]}" != "true" ]]; then
+        die "Storage '${DISK_STORAGE_CONFIG[name]}' does not support VM disk images. Supported content: ${DISK_STORAGE_CONFIG[content]}"
+    fi
+
+    # Validate disk format is supported by the storage type
+    local supported_formats="${DISK_STORAGE_CONFIG[image_formats]}"
+    if [[ ! ",$supported_formats," == *",$DISK_FORMAT,"* ]]; then
+        die "Disk format '$DISK_FORMAT' is not supported by storage '${DISK_STORAGE_CONFIG[name]}' (type: ${DISK_STORAGE_CONFIG[type]}). Supported formats: $supported_formats"
+    fi
+
+    # Validate snippets storage supports snippets
+    if [[ "${SNIPPETS_STORAGE_CONFIG[supports_snippets]}" != "true" ]]; then
+        die "Storage '${SNIPPETS_STORAGE_CONFIG[name]}' does not support snippets. Supported content: ${SNIPPETS_STORAGE_CONFIG[content]}"
+    fi
 }
 
 # --- Main script logic ---
@@ -362,7 +444,7 @@ main() {
     for argn in 1 2 3; do
         arg="${!argn}"
         if [[ "$arg" == --* ]]; then
-            echo "Error: Argument $argn must be a value, not an option (got '$arg')."
+            echo "Error: Argument $argn must be a value, not an option (got '$arg')"
             echo ""
             usage
             exit 1
@@ -461,8 +543,19 @@ main() {
     # Set SNIPPETS_STORAGE to STORAGE if not specified
     SNIPPETS_STORAGE="${SNIPPETS_STORAGE:-$STORAGE}"
 
-    # Auto-detect snippets directory and install dependencies
-    SNIPPETS_DIR=$(get_snippet_path "$SNIPPETS_STORAGE")
+    # Parse storage configuration
+    parse_storage_config "$STORAGE" DISK_STORAGE_CONFIG
+    if [[ "$SNIPPETS_STORAGE" == "$STORAGE" ]]; then
+        # Copy associative array by iterating over keys
+        for key in "${!DISK_STORAGE_CONFIG[@]}"; do
+            SNIPPETS_STORAGE_CONFIG["$key"]="${DISK_STORAGE_CONFIG[$key]}"
+        done
+    else
+        parse_storage_config "$SNIPPETS_STORAGE" SNIPPETS_STORAGE_CONFIG
+    fi
+
+    # Validate storage capabilities
+    validate_storage
 
     create_template "$CLOUD_IMAGE_URL"
 }
