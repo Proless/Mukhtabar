@@ -22,7 +22,7 @@ ENABLE_ROOT_LOGIN="false"           # If set to true, enable PermitRootLogin yes
 ENABLE_PASSWORD_AUTH="false"        # If set to true, enable PasswordAuthentication yes
 
 # Cloud-Init settings
-USER=""
+CI_USER=""
 PASSWORD=""
 SSH_KEYS=""
 
@@ -51,6 +51,7 @@ quiet_run() {
 # Function to display usage information
 usage() {
     echo "Usage: $0 <cloud-image-url> <id> <name> [OPTIONS]"
+    echo ""
     echo "Creates a Proxmox VE template for a given Linux cloud image URL."
     echo ""
     echo "Arguments:"
@@ -59,7 +60,7 @@ usage() {
     echo "  name                           Name for the template (required)"
     echo ""
     echo "Options:"
-    echo "  --user <user>                  Set the cloud-init username"
+    echo "  --user <user>                  Set the cloud-init user"
     echo "  --password <password>          Set the cloud-init password"
     echo "  --storage <storage>            Proxmox storage for VM disk (default: local-lvm)"
     echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
@@ -203,7 +204,7 @@ EOF
 
 # Function to create cloud-init network-config file
 generate_ci_network_data() {
-    local network_config_file="${SNIPPETS_DIR}/ci-network-data.yml"
+    local network_config_file="${SNIPPETS_DIR}/ci-network-data-${ID}.yml"
 
     echo "Creating cloud-init network-data snippet..."
 
@@ -214,7 +215,7 @@ network:
   ethernets:
     default:
       match:
-        name: en*
+        name: e*
       dhcp4: true
       dhcp4-overrides:
         use-dns: true
@@ -282,12 +283,12 @@ create_template() {
         --scsi0 "$STORAGE:$ID/vm-$ID-disk-0.${DISK_FORMAT},${DISK_FLAGS}" \
         --boot "order=scsi0" \
         --scsi1 "$STORAGE:cloudinit" \
-        --ciuser "$USER" \
+        --ciuser "$CI_USER" \
         --cipassword "$PASSWORD" \
         --ciupgrade 1 \
         --ipconfig0 "ip6=auto,ip=dhcp" \
         --sshkeys "$SSH_KEYS" \
-        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data.yml"
+        --cicustom "vendor=${SNIPPETS_STORAGE}:snippets/ci-vendor-data-${ID}.yml,network=${SNIPPETS_STORAGE}:snippets/ci-network-data-${ID}.yml"
 
     # Convert the VM to a template
     echo "Converting VM $ID to a template..."
@@ -319,11 +320,14 @@ die() {
 
 validate_args() {
     # 1. Mutually exclusive/dependent options
-    if [[ -n "$USER" ]]; then
+    if [[ -n "$CI_USER" ]]; then
         if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
-            die "You must provide at least one of --password or --ssh-keys."
+            die "You must provide at least one of --password or --ssh-keys when --user is specified"
         fi
+    else
+        echo "Warning: No cloud-init user provided; using distro default"
     fi
+    
     # 2. Required parameters
     require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
     require_param "$ID" "id (argument 2)"
@@ -336,7 +340,7 @@ validate_args() {
     case "$DISK_FORMAT" in
         qcow2|raw|vmdk) ;;
         *)
-            die "Unsupported disk format '$DISK_FORMAT'. Supported: qcow2, raw, vmdk."
+            die "Unsupported disk format '$DISK_FORMAT'. Supported: qcow2, raw, vmdk"
             ;;
     esac
     # 5. ID existence (after all other checks)
@@ -353,6 +357,18 @@ main() {
         usage
         exit 1
     fi
+
+    # Ensure first three arguments are not options
+    for argn in 1 2 3; do
+        arg="${!argn}"
+        if [[ "$arg" == --* ]]; then
+            echo "Error: Argument $argn must be a value, not an option (got '$arg')."
+            echo ""
+            usage
+            exit 1
+        fi
+    done
+
     CLOUD_IMAGE_URL="$1"
     ID="$2"
     NAME="$3"
@@ -362,7 +378,7 @@ main() {
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
             --user)
-                USER="$2"
+                CI_USER="$2"
                 shift 2
                 ;;
             --password)
