@@ -311,7 +311,7 @@ Next we need to change the default web interface port and adjust redirect settin
 
 1. Navigate to `System` → `Settings` → `Administration`.
 2. Set the **TCP Port** to `8443` (or another port of your choice).
-3. Uncheck the option labeled **Disable web GUI redirect rule** next to HTTP Redirect.
+3. Check the option labeled **Disable web GUI redirect rule** next to HTTP Redirect.
 4. Scroll down and click `Save`.
 
 After saving, your browser will prompt you to reconnect using the new port. Click on the new link (e.g., `https://<your-proxmox-ip>:8443`) to return to the Web UI.
