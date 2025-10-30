@@ -90,7 +90,8 @@ Now that the installation is complete, it's important to update the system and a
 To download and execute the script directly, select your node in the Proxmox web interface, navigate to "Shell," and run the following commands:
 
 ```bash
-apt update && apt install -y curl
+apt update
+apt install -y curl
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proless/Mukhtabar/main/scripts/proxmox/pve-init.sh)"
 ```
 
