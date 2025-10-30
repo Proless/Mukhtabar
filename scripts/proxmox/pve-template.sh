@@ -18,6 +18,7 @@ MEMORY="2048"                       # Memory in MB (default: 2048)
 CORES="4"                           # Number of CPU cores (default: 4)
 DISK_FORMAT="qcow2"                 # Disk format: qcow2 (default), raw, or vmdk
 DISK_FLAGS="discard=on"             # Default disk flags
+DISPLAY_TYPE="std"                  # Display type (e.g., std, cirrus, vmware, qxl)
 
 # SSH settings
 ENABLE_ROOT_LOGIN="false"           # If set to true, enable PermitRootLogin yes
@@ -83,6 +84,7 @@ usage() {
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
     echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
     echo "  --disk-flags <flags>           Space-separated Disk flags (default: discard=on)"
+    echo "  --display <type>               Set the display/vga type (default: std)"
     echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
     echo "  --dns-servers <servers>        Space-separated DNS servers (e.g., '10.10.10.10 9.9.9.9')"
     echo "  --domain-names <domains>       Space-separated domain names (e.g., 'example.com internal.local')"
@@ -295,6 +297,7 @@ create_template() {
         --net0 virtio,bridge="$BRIDGE" \
         --agent enabled=1 \
         --ostype l26 \
+        --vga "$DISPLAY_TYPE" \
         --serial0 socket
 
     # Import the downloaded disk to the VM's storage
@@ -520,6 +523,10 @@ main() {
                 ;;
             --disk-flags)
                 DISK_FLAGS="$2"
+                shift 2
+                ;;
+            --display)
+                DISPLAY_TYPE="$2"
                 shift 2
                 ;;
             --enable-root-login)
