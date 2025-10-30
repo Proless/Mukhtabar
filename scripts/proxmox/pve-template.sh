@@ -158,7 +158,7 @@ parse_storage_config() {
     local image_formats=""
     if [[ "$content" == *"images"* ]]; then
         supports_images="true"
-        
+
         # Set supported image formats based on storage type
         case "$storage_type" in
             dir)
@@ -184,12 +184,12 @@ parse_storage_config() {
 
         # Determine snippets directory
         local relative_dir="snippets"
-        
+
         # Check if content-dirs has a custom snippets path
         if [[ -n "$content_dirs" ]] && [[ "$content_dirs" =~ snippets=([^,]+) ]]; then
             relative_dir="${BASH_REMATCH[1]}"
         fi
-        
+
         # Construct full path
         snippets_dir="${path}/${relative_dir}"
 
@@ -234,7 +234,7 @@ EOF
             echo "  - $pkg" >> "$vendor_data_file"
         done
     fi
-    
+
     [[ -n "$LOCALE" ]] && echo "locale: ${LOCALE}" >> "$vendor_data_file"
     [[ -n "$TIMEZONE" ]] && echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
     [[ -n "$KEYBOARD" ]] && cat >> "$vendor_data_file" <<EOF
@@ -283,7 +283,7 @@ EOF
         for dns in "${dns_array[@]}"; do
             [[ -n "$dns" ]] && echo "      - ${dns}" >> "$network_config_file"
         done
-        
+
         # Add domain names to search if specified
         if [[ -n "$DOMAIN_NAMES" ]]; then
             echo "    search:" >> "$network_config_file"
@@ -347,7 +347,7 @@ create_template() {
 
     # Configure storage, boot, and cloud-init
     echo "Configuring storage and cloud-init..."
-    
+
     # Build disk path based on storage type
     local disk_path
     local storage_type="${DISK_STORAGE_CONFIG[type]}"
@@ -358,7 +358,7 @@ create_template() {
         # Directory-based storage types use: storage:ID/vm-ID-disk-N.format
         disk_path="$disk_storage:$ID/vm-$ID-disk-0.${DISK_FORMAT}"
     fi
-    
+
     # Build qm set command with conditional cloud-init parameters
     local qm_cmd=(qm set "$ID"
         --scsihw "virtio-scsi-single"
@@ -367,39 +367,39 @@ create_template() {
         --scsi1 "$disk_storage:cloudinit"
         --ciupgrade 1
     )
-    
+
     # Add custom cloud-init snippets if using custom network config
     if [[ "$USE_CUSTOM_NETWORK_CONFIG" == "true" ]]; then
         qm_cmd+=(--cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml,network=${snippets_storage}:snippets/ci-network-data-${ID}.yml")
     else
         qm_cmd+=(--ipconfig0 "ip=dhcp")
-        
+
         # Add DNS servers if specified
         if [[ -n "$DNS_SERVERS" ]]; then
             qm_cmd+=(--nameserver "$DNS_SERVERS")
         fi
-        
+
         # Add search domain if specified
         if [[ -n "$DOMAIN_NAMES" ]]; then
             qm_cmd+=(--searchdomain "$DOMAIN_NAMES")
         fi
-        
+
         qm_cmd+=(--cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml")
     fi
-    
+
     # Add cloud-init user settings if user is specified
     if [[ -n "$CI_USER" ]]; then
         qm_cmd+=(--ciuser "$CI_USER")
-        
+
         if [[ -n "$PASSWORD" ]]; then
             qm_cmd+=(--cipassword "$PASSWORD")
         fi
-        
+
         if [[ -n "$SSH_KEYS" ]]; then
             qm_cmd+=(--sshkeys "$SSH_KEYS")
         fi
     fi
-    
+
     quiet_run "${qm_cmd[@]}"
 
     # Convert the VM to a template
@@ -431,11 +431,11 @@ require_file() {
 }
 
 validate_args() {
-    
+
     require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
     require_param "$ID" "id (argument 2)"
     require_param "$NAME" "name (argument 3)"
-    
+
     if [[ -n "$CI_USER" ]]; then
         if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
             die "You must provide at least one of --password or --ssh-keys when --user is specified"
@@ -453,10 +453,10 @@ validate_args() {
     else
         echo "Warning: No cloud-init user provided"
     fi
-    
+
     if qm status "$ID" &>/dev/null; then
         die "ID $ID already exists. Please choose a different ID."
-    fi  
+    fi
 }
 
 validate_storage() {
