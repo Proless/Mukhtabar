@@ -33,6 +33,12 @@ TIMEZONE=""                         # Timezone
 KEYBOARD=""                         # Keyboard layout
 LOCALE=""                           # Locale
 
+# Network settings
+USE_CUSTOM_NETWORK_CONFIG="true"    # If false, use Proxmox-generated network config instead of custom
+NETWORK_INTERFACE="eth0"            # Network interface name (default: eth0)
+DNS_SERVERS=""                      # DNS servers (space-separated, e.g., 8.8.8.8 8.8.4.4)
+DOMAIN_NAMES=""                     # Domain names (space-separated, e.g., example.com internal.local)
+
 # Other settings
 PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
 
@@ -78,8 +84,12 @@ usage() {
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
     echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
-    echo "  --disk-flags <flags>           Disk flags (default: discard=on)"
-    echo "  --install <packages>           Quoted Space-separated list of packages to install in the template using cloud-init"
+    echo "  --disk-flags <flags>           Space-separated Disk flags (default: discard=on)"
+    echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
+    echo "  --network-interface <name>     Network interface name (default: eth0) - Ignored if --use-proxmox-network-config is set"
+    echo "  --dns-servers <servers>        Space-separated DNS servers (e.g., '8.8.8.8 8.8.4.4')"
+    echo "  --domain-names <domains>       Space-separated domain names (e.g., 'example.com internal.local') - Ignored if --domain-servers is not set"
+    echo "  --use-proxmox-network-config   Use Proxmox-generated network config instead of custom cloud-init network-data"
     echo "  --enable-root-login            Enable PermitRootLogin yes in SSH config (default: false)"
     echo "  --enable-password-auth         Enable PasswordAuthentication yes in SSH config (default: false)"
     echo "  -h,  --help                    Display this help message"
@@ -256,18 +266,33 @@ generate_ci_network_data() {
     echo "Creating cloud-init network-data snippet..."
 
     cat > "$network_config_file" <<EOF
-network:
-  version: 2
-  ethernets:
-    default:
-      match:
-        name: e*
-      dhcp4: true
-      dhcp4-overrides:
-        use-dns: true
-        use-ntp: true
-        use-domains: true
+#cloud-config
+version: 1
+config:
+  - type: physical
+    name: ${NETWORK_INTERFACE}
+    subnets:
+      - type: dhcp4
 EOF
+
+    # Add nameserver configuration if DNS servers are specified (address is mandatory)
+    if [[ -n "$DNS_SERVERS" ]]; then
+        echo "  - type: nameserver" >> "$network_config_file"
+        echo "    address:" >> "$network_config_file"
+        IFS=' ' read -ra dns_array <<< "$DNS_SERVERS"
+        for dns in "${dns_array[@]}"; do
+            [[ -n "$dns" ]] && echo "      - ${dns}" >> "$network_config_file"
+        done
+        
+        # Add domain names to search if specified
+        if [[ -n "$DOMAIN_NAMES" ]]; then
+            echo "    search:" >> "$network_config_file"
+            IFS=' ' read -ra domain_array <<< "$DOMAIN_NAMES"
+            for domain in "${domain_array[@]}"; do
+                [[ -n "$domain" ]] && echo "      - ${domain}" >> "$network_config_file"
+            done
+        fi
+    fi
 }
 
 # Function to create the VM template
@@ -301,7 +326,9 @@ create_template() {
 
     # Create cloud-init snippets
     generate_ci_vendor_data
-    generate_ci_network_data
+    if [[ "$USE_CUSTOM_NETWORK_CONFIG" == "true" ]]; then
+        generate_ci_network_data
+    fi
 
     # Create a new VM with basic configuration
     echo "Creating VM $ID..."
@@ -335,13 +362,30 @@ create_template() {
     # Build qm set command with conditional cloud-init parameters
     local qm_cmd=(qm set "$ID"
         --scsihw "virtio-scsi-single"
-        --scsi0 "${disk_path},${DISK_FLAGS}"
+        --scsi0 "${disk_path},${DISK_FLAGS// /,}"
         --boot "order=scsi0"
         --scsi1 "$disk_storage:cloudinit"
         --ciupgrade 1
-        --ipconfig0 "ip=dhcp"
-        --cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml,network=${snippets_storage}:snippets/ci-network-data-${ID}.yml"
     )
+    
+    # Add custom cloud-init snippets if using custom network config
+    if [[ "$USE_CUSTOM_NETWORK_CONFIG" == "true" ]]; then
+        qm_cmd+=(--cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml,network=${snippets_storage}:snippets/ci-network-data-${ID}.yml")
+    else
+        qm_cmd+=(--ipconfig0 "ip=dhcp")
+        
+        # Add DNS servers if specified
+        if [[ -n "$DNS_SERVERS" ]]; then
+            qm_cmd+=(--nameserver "$DNS_SERVERS")
+        fi
+        
+        # Add search domain if specified
+        if [[ -n "$DOMAIN_NAMES" ]]; then
+            qm_cmd+=(--searchdomain "$DOMAIN_NAMES")
+        fi
+        
+        qm_cmd+=(--cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml")
+    fi
     
     # Add cloud-init user settings if user is specified
     if [[ -n "$CI_USER" ]]; then
@@ -508,6 +552,22 @@ main() {
             --locale)
                 LOCALE="$2"
                 shift 2
+                ;;
+            --network-interface)
+                NETWORK_INTERFACE="$2"
+                shift 2
+                ;;
+            --dns-servers)
+                DNS_SERVERS="$2"
+                shift 2
+                ;;
+            --domain-names)
+                DOMAIN_NAMES="$2"
+                shift 2
+                ;;
+            --use-proxmox-network-config)
+                USE_CUSTOM_NETWORK_CONFIG="false"
+                shift
                 ;;
             --ssh-keys)
                 SSH_KEYS="$2"
