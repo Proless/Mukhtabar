@@ -254,18 +254,6 @@ generate_ci_vendor_data() {
 
 # patch functions params : vendor-data file ($1),  image file ($2) as arguments
 
-patch_ssh_root_login() {
-    yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PermitRootLogin.*/PermitRootLogin yes/\\\" /etc/ssh/sshd_config\"]" "$1"
-    yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
-}
-
-patch_ssh_password_auth() {
-    yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PasswordAuthentication.*/PasswordAuthentication yes/\\\" /etc/ssh/sshd_config\"]" "$1"
-    yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
-}
-
 patch_debian_locale() {
     # Remove the locale section from the YAML file
     yq -i -y "del(.locale)" "$1"
