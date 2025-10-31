@@ -20,10 +20,6 @@ DISK_FORMAT="qcow2"                 # Disk format: qcow2 (default), raw, or vmdk
 DISK_FLAGS="discard=on"             # Default disk flags
 DISPLAY_TYPE="std"                  # Display type (e.g., std, cirrus, vmware, qxl)
 
-# SSH settings
-ENABLE_ROOT_LOGIN="false"           # If set to true, enable PermitRootLogin yes
-ENABLE_PASSWORD_AUTH="false"        # If set to true, enable PasswordAuthentication yes
-
 # Cloud-Init settings
 CI_USER=""
 PASSWORD=""
@@ -41,6 +37,7 @@ DOMAIN_NAMES=""                     # Domain names (space-separated, e.g., examp
 
 # Other settings
 PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
+PATCHES_TO_APPLY=""                 # Space-separated list of patches to apply
 
 # Storage
 STORAGE="local-lvm"                 # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
@@ -90,9 +87,13 @@ usage() {
     echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
     echo "  --dns-servers <servers>        Space-separated DNS servers (e.g., '10.10.10.10 9.9.9.9')"
     echo "  --domain-names <domains>       Space-separated domain names (e.g., 'example.com internal.local')"
-    echo "  --enable-root-login            Enable PermitRootLogin yes in SSH config (default: false)"
-    echo "  --enable-password-auth         Enable PasswordAuthentication yes in SSH config (default: false)"
+    echo "  --patches <patches>            Space-separated list of patch names to apply"
     echo "  -h,  --help                    Display this help message"
+
+    echo ""
+    echo "Supported patches (for --patches):"
+    echo "  ssh_root_login         Enable SSH root login (PermitRootLogin yes)"
+    echo "  ssh_password_auth      Enable SSH password authentication (PasswordAuthentication yes)"
 }
 
 # Function to parse Proxmox storage configuration and extract information
@@ -218,49 +219,74 @@ generate_ci_vendor_data() {
 
     echo "Creating cloud-init vendor-data snippet..."
 
-    # Write YAML header and qemu-guest-agent package
-    cat > "$vendor_data_file" <<EOF
-#cloud-config
-package_update: true
-package_upgrade: true
-package_reboot_if_required: true
-packages:
-  - qemu-guest-agent
-EOF
+    # Create vendor-data file
+    local tmp_yaml
+    tmp_yaml=$(mktemp)
+    yq -y -n \
+        ' .package_update = true
+        | .package_upgrade = true
+        | .package_reboot_if_required = true
+        | .packages = ["qemu-guest-agent"]
+        ' > "$tmp_yaml"
+
     # Append extra packages if specified
     if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
         IFS=' ' read -ra pkg_array <<< "$PACKAGES_TO_INSTALL"
         for pkg in "${pkg_array[@]}"; do
-            echo "  - $pkg" >> "$vendor_data_file"
+            yq -i -y ".packages += [\"$pkg\"]" "$tmp_yaml"
         done
     fi
 
-    [[ -n "$LOCALE" ]] && echo "locale: ${LOCALE}" >> "$vendor_data_file"
-    [[ -n "$TIMEZONE" ]] && echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
+    [[ -n "$LOCALE" ]] && yq -i -y ".locale = \"$LOCALE\"" "$tmp_yaml"
+    [[ -n "$TIMEZONE" ]] && yq -i -y ".timezone = \"$TIMEZONE\"" "$tmp_yaml"
+
     if [[ -n "$KEYBOARD" ]]; then
-    cat >> "$vendor_data_file" <<EOF
-keyboard:
-  layout: ${KEYBOARD}
-EOF
+        yq -i -y ".keyboard.layout = \"$KEYBOARD\"" "$tmp_yaml"
         if [[ -n "$KEYBOARD_VARIANT" ]]; then
-            echo "  variant: ${KEYBOARD_VARIANT}" >> "$vendor_data_file"
+            yq -i -y ".keyboard.variant = \"$KEYBOARD_VARIANT\"" "$tmp_yaml"
         fi
     fi
 
-    # Add runcmd to enable qemu-guest-agent and optionally SSH config changes
-    echo "runcmd:" >> "$vendor_data_file"
-    if [[ "$ENABLE_ROOT_LOGIN" == "true" ]]; then
-        echo "  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config" >> "$vendor_data_file"
-    fi
-    if [[ "$ENABLE_PASSWORD_AUTH" == "true" ]]; then
-        echo "  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config" >> "$vendor_data_file"
-    fi
+    # Initialize runcmd array
+    yq -i -y '.runcmd = []' "$tmp_yaml"
 
+    # Add final runcmd commands
+    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$tmp_yaml"
+    yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$tmp_yaml"
+    yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$tmp_yaml"
+
+    # Prepend header and move to final file
     {
-        echo "  - systemctl restart sshd"
-        echo "  - systemctl enable qemu-guest-agent"
-        echo "  - systemctl start qemu-guest-agent"
-    } >> "$vendor_data_file"
+        echo "#cloud-config"
+        cat "$tmp_yaml"
+    } > "$vendor_data_file"
+    rm -f "$tmp_yaml"
+}
+
+# patch functions receiving vendor-data file ($1) and image file ($2) as arguments
+
+patch_ssh_root_login() {
+    yq -i -y '.runcmd += ["sed -i ''s/^#\\?PermitRootLogin.*/PermitRootLogin yes/'' /etc/ssh/sshd_config"]' "$1"
+}
+
+patch_ssh_password_auth() {
+    yq -i -y '.runcmd += ["sed -i ''s/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/'' /etc/ssh/sshd_config"]' "$1"
+}
+
+apply_patches(){
+    local vendor_data_file="$1"
+    local image_file="$2"
+    
+    IFS=' ' read -ra patches_array <<< "$PATCHES_TO_APPLY"
+    for patch in "${patches_array[@]}"; do
+        local func="patch_${patch}"
+        if declare -f "$func" > /dev/null; then
+            echo "Applying patch: $patch"
+            "$func" "$vendor_data_file" "$image_file"
+        else
+            echo "Warning: Unknown patch '$patch' specified. Skipping."
+        fi
+    done
 }
 
 # Function to create the VM template
@@ -269,6 +295,8 @@ create_template() {
     local filename
     local snippets_storage="${SNIPPETS_STORAGE_CONFIG[name]}"
     local disk_storage="${DISK_STORAGE_CONFIG[name]}"
+    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
+    local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
     filename=$(basename "$url")
 
     echo "--- Creating template $NAME (ID: $ID) ---"
@@ -294,6 +322,12 @@ create_template() {
 
     # Create cloud-init snippets
     generate_ci_vendor_data
+
+    # Apply patches if specified
+    if [[ -n "$PATCHES_TO_APPLY" ]]; then
+        echo "Applying patches: $PATCHES_TO_APPLY"
+        apply_patches "$vendor_data_file" "$working_image"
+    fi
 
     # Create a new VM with basic configuration
     echo "Creating VM $ID..."
@@ -436,9 +470,40 @@ validate_storage() {
     fi
 }
 
+# Function to check for a dependency and install if missing
+check_and_install_dependency() {
+    local dep="$1"
+    local package="$2"
+    if ! command -v "$dep" &> /dev/null; then
+        echo "$dep is not installed. Would you like to install it now? [Y/n]" >&2
+        read -r yn
+        case $yn in
+            [Yy]*|"")
+                echo "Installing $package..." >&2
+                quiet_run apt update && quiet_run apt install -y "$package"
+                if ! command -v "$dep" &> /dev/null; then
+                    echo "$dep installation failed. Exiting." >&2
+                    exit 1
+                fi
+                ;;
+            [Nn]*)
+                echo "$dep is required. Exiting." >&2
+                exit 1
+                ;;
+            *)
+                echo "Please answer yes or no." >&2
+                exit 1
+                ;;
+        esac
+    fi
+}
+
 # --- Main script logic ---
 
 main() {
+    
+    check_and_install_dependency yq yq
+    
     # Parse positional arguments
     if [[ "$#" -lt 3 ]]; then
         usage
@@ -540,13 +605,9 @@ main() {
                 DISPLAY_TYPE="$2"
                 shift 2
                 ;;
-            --enable-root-login)
-                ENABLE_ROOT_LOGIN=true
-                shift
-                ;;
-            --enable-password-auth)
-                ENABLE_PASSWORD_AUTH=true
-                shift
+            --patches)
+                PATCHES_TO_APPLY="$2"
+                shift 2
                 ;;
             -h|--help)
                 usage
