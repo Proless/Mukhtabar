@@ -256,13 +256,13 @@ generate_ci_vendor_data() {
 
 patch_ssh_root_login() {
     yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^#?PermitRootLogin.*/PermitRootLogin yes/\\\" /etc/ssh/sshd_config\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PermitRootLogin.*/PermitRootLogin yes/\\\" /etc/ssh/sshd_config\"]" "$1"
     yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
 }
 
 patch_ssh_password_auth() {
     yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^#?PasswordAuthentication.*/PasswordAuthentication yes/\\\" /etc/ssh/sshd_config\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PasswordAuthentication.*/PasswordAuthentication yes/\\\" /etc/ssh/sshd_config\"]" "$1"
     yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
 }
 
@@ -270,7 +270,7 @@ patch_debian_locale() {
     # Remove the locale section from the YAML file
     yq -i -y "del(.locale)" "$1"
     # Add shell commands to runcmd for locale setup
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^# *\\\\(${LOCALE}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^# *\\\\(${LOCALE}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$1"
     yq -i -y ".runcmd += [\"grep -q \\\"^${LOCALE}\\\" /etc/locale.gen || echo \\\"${LOCALE}\\\" >> /etc/locale.gen\"]" "$1"
     yq -i -y ".runcmd += [\"locale-gen\"]" "$1"
     yq -i -y ".runcmd += [\"update-locale LANG=\\\"${LOCALE}\\\"\"]" "$1"
@@ -284,9 +284,9 @@ patch_debian_keyboard() {
     yq -i -y ".packages += [\"keyboard-configuration\"]" "$1"
     yq -i -y ".packages += [\"console-setup\"]" "$1"
     # Add shell commands to runcmd for keyboard setup
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^XKBMODEL.*/XKBMODEL=\\\"pc105\\\"/\\\" /etc/default/keyboard\"]" "$1"
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^XKBLAYOUT.*/XKBLAYOUT=\\\"${KEYBOARD}\\\"/\\\" /etc/default/keyboard\"]" "$1"
-    yq -i -y ".runcmd += [\"sed -i \\\"s/^XKBVARIANT.*/XKBVARIANT=\\\"${KEYBOARD_VARIANT}\\\"/\\\" /etc/default/keyboard\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBMODEL.*/XKBMODEL=\\\"pc105\\\"/\\\" /etc/default/keyboard\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBLAYOUT.*/XKBLAYOUT=\\\"${KEYBOARD}\\\"/\\\" /etc/default/keyboard\"]" "$1"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBVARIANT.*/XKBVARIANT=\\\"${KEYBOARD_VARIANT}\\\"/\\\" /etc/default/keyboard\"]" "$1"
     yq -i -y ".runcmd += [\"dpkg-reconfigure -f noninteractive keyboard-configuration\"]" "$1"
     yq -i -y ".runcmd += [\"setupcon\"]" "$1"
 }
