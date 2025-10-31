@@ -252,23 +252,48 @@ generate_ci_vendor_data() {
     yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$vendor_data_file"
 }
 
-# patch functions receiving vendor-data file ($1) and image file ($2) as arguments
+# patch functions params : vendor-data file ($1),  image file ($2) as arguments
 
 patch_ssh_root_login() {
-    # Remove any existing restart command
-    yq -i -y 'del(.runcmd[] | select(. == "systemctl restart sshd"))' "$1"
-    yq -i -y '.runcmd += ["sed -i ''s/^#\\?PermitRootLogin.*/PermitRootLogin yes/'' /etc/ssh/sshd_config"]' "$1"
-    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$1"
+    yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
+    yq -i -y '.runcmd += ["sed -i '\''s/^#\\?PermitRootLogin.*/PermitRootLogin yes/'\'' /etc/ssh/sshd_config"]' "$1"
+    yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
 }
 
 patch_ssh_password_auth() {
-    # Remove any existing restart command
-    yq -i -y 'del(.runcmd[] | select(. == "systemctl restart sshd"))' "$1"
-    yq -i -y '.runcmd += ["sed -i ''s/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/'' /etc/ssh/sshd_config"]' "$1"
-    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$1"
+    yq -i -y "del(.runcmd[] | select(. == \"systemctl restart sshd\"))" "$1"
+    yq -i -y '.runcmd += ["sed -i '\''s/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/'\'' /etc/ssh/sshd_config"]' "$1"
+    yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$1"
 }
 
-apply_patches(){
+patch_debian_locale() {
+    # Remove the locale section from the YAML file
+    yq -i -y "del(.locale)" "$1"
+    # Add shell commands to runcmd for locale setup
+    yq -i -y ".runcmd += [\"sed -i \\\"s/^# *\\\\(${LOCALE}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$1"
+    yq -i -y ".runcmd += [\"grep -q \\\"^${LOCALE}\\\" /etc/locale.gen || echo \\\"${LOCALE}\\\" >> /etc/locale.gen\"]" "$1"
+    yq -i -y ".runcmd += [\"locale-gen\"]" "$1"
+    yq -i -y ".runcmd += [\"update-locale LANG=\\\"${LOCALE}\\\"\"]" "$1"
+    yq -i -y ".runcmd += [\"export LANG=\\\"${LOCALE}\\\"\"]" "$1"
+}
+
+patch_debian_keyboard() {
+    # Remove the keyboard section from the YAML file
+    yq -i -y "del(.keyboard)" "$1"
+    # Add shell commands to runcmd for keyboard setup
+    yq -i -y ".runcmd += [\"echo \\\"keyboard-configuration keyboard-configuration/layoutcode string ${KEYBOARD}\\\" | debconf-set-selections\"]" "$1"
+    yq -i -y ".runcmd += [\"echo \\\"keyboard-configuration keyboard-configuration/modelcode string pc105\\\" | debconf-set-selections\"]" "$1"
+    yq -i -y ".runcmd += [\"echo \\\"keyboard-configuration keyboard-configuration/variant select ${KEYBOARD_VARIANT}\\\" | debconf-set-selections\"]" "$1"
+    yq -i -y ".runcmd += [\"echo \\\"keyboard-configuration keyboard-configuration/xkb-keymap select ${KEYBOARD}\\\" | debconf-set-selections\"]" "$1"
+    yq -i -y ".runcmd += [\"dpkg-reconfigure -f noninteractive keyboard-configuration\"]" "$1"
+    yq -i -y ".runcmd += [\"setupcon || true\"]" "$1"
+    yq -i -y ".runcmd += [\"service keyboard-setup restart || true\"]" "$1"
+    # Add required packages
+    yq -i -y ".packages += [\"keyboard-configuration\"]" "$1"
+    yq -i -y ".packages += [\"console-setup\"]" "$1"
+}
+
+apply_patches() {
     local vendor_data_file="$1"
     local image_file="$2"
     
