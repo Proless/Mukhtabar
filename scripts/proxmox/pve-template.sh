@@ -281,7 +281,7 @@ apply_patches(){
     for patch in "${patches_array[@]}"; do
         local func="patch_${patch}"
         if declare -f "$func" > /dev/null; then
-            echo "Applying patch: $patch"
+            echo "Applying patch $patch..."
             "$func" "$vendor_data_file" "$image_file"
         else
             echo "Warning: Unknown patch '$patch' specified. Skipping."
@@ -325,7 +325,6 @@ create_template() {
 
     # Apply patches if specified
     if [[ -n "$PATCHES_TO_APPLY" ]]; then
-        echo "Applying patches: $PATCHES_TO_APPLY"
         apply_patches "$vendor_data_file" "$working_image"
     fi
 
