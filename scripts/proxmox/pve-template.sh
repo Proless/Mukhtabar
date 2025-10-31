@@ -32,6 +32,7 @@ SSH_KEYS=""
 # Localization settings
 TIMEZONE=""                         # Timezone
 KEYBOARD=""                         # Keyboard layout
+KEYBOARD_VARIANT=""                 # Keyboard variant
 LOCALE=""                           # Locale
 
 # Network settings
@@ -79,6 +80,7 @@ usage() {
     echo "  --cores <num>                  Number of CPU cores (default: 4)"
     echo "  --timezone <timezone>          Timezone (e.g., America/New_York, Europe/London)"
     echo "  --keyboard <layout>            Keyboard layout (e.g., us, uk, de)"
+    echo "  --keyboard-variant <variant>   Keyboard variant (e.g., intl)"
     echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, de_DE.UTF-8)"
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
@@ -235,10 +237,15 @@ EOF
 
     [[ -n "$LOCALE" ]] && echo "locale: ${LOCALE}" >> "$vendor_data_file"
     [[ -n "$TIMEZONE" ]] && echo "timezone: ${TIMEZONE}" >> "$vendor_data_file"
-    [[ -n "$KEYBOARD" ]] && cat >> "$vendor_data_file" <<EOF
+    if [[ -n "$KEYBOARD" ]]; then
+    cat >> "$vendor_data_file" <<EOF
 keyboard:
   layout: ${KEYBOARD}
 EOF
+        if [[ -n "$KEYBOARD_VARIANT" ]]; then
+            echo "  variant: ${KEYBOARD_VARIANT}" >> "$vendor_data_file"
+        fi
+    fi
 
     # Add runcmd to enable qemu-guest-agent and optionally SSH config changes
     echo "runcmd:" >> "$vendor_data_file"
@@ -499,6 +506,10 @@ main() {
                 ;;
             --keyboard)
                 KEYBOARD="$2"
+                shift 2
+                ;;
+            --keyboard-variant)
+                KEYBOARD_VARIANT="$2"
                 shift 2
                 ;;
             --locale)
