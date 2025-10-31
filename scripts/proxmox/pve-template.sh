@@ -214,63 +214,58 @@ parse_storage_config() {
 
 # Function to create cloud-init vendor-data file
 generate_ci_vendor_data() {
-    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
-    local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
+    local vendor_data_file="$1"
 
     echo "Creating cloud-init vendor-data snippet..."
 
     # Create vendor-data file
-    local tmp_yaml
-    tmp_yaml=$(mktemp)
     yq -y -n \
         ' .package_update = true
         | .package_upgrade = true
         | .package_reboot_if_required = true
         | .packages = ["qemu-guest-agent"]
-        ' > "$tmp_yaml"
+        ' > "$vendor_data_file"
 
     # Append extra packages if specified
     if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
         IFS=' ' read -ra pkg_array <<< "$PACKAGES_TO_INSTALL"
         for pkg in "${pkg_array[@]}"; do
-            yq -i -y ".packages += [\"$pkg\"]" "$tmp_yaml"
+            yq -i -y ".packages += [\"$pkg\"]" "$vendor_data_file"
         done
     fi
 
-    [[ -n "$LOCALE" ]] && yq -i -y ".locale = \"$LOCALE\"" "$tmp_yaml"
-    [[ -n "$TIMEZONE" ]] && yq -i -y ".timezone = \"$TIMEZONE\"" "$tmp_yaml"
+    [[ -n "$LOCALE" ]] && yq -i -y ".locale = \"$LOCALE\"" "$vendor_data_file"
+    [[ -n "$TIMEZONE" ]] && yq -i -y ".timezone = \"$TIMEZONE\"" "$vendor_data_file"
 
     if [[ -n "$KEYBOARD" ]]; then
-        yq -i -y ".keyboard.layout = \"$KEYBOARD\"" "$tmp_yaml"
+        yq -i -y ".keyboard.layout = \"$KEYBOARD\"" "$vendor_data_file"
         if [[ -n "$KEYBOARD_VARIANT" ]]; then
-            yq -i -y ".keyboard.variant = \"$KEYBOARD_VARIANT\"" "$tmp_yaml"
+            yq -i -y ".keyboard.variant = \"$KEYBOARD_VARIANT\"" "$vendor_data_file"
         fi
     fi
 
     # Initialize runcmd array
-    yq -i -y '.runcmd = []' "$tmp_yaml"
+    yq -i -y '.runcmd = []' "$vendor_data_file"
 
     # Add final runcmd commands
-    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$tmp_yaml"
-    yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$tmp_yaml"
-    yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$tmp_yaml"
-
-    # Prepend header and move to final file
-    {
-        echo "#cloud-config"
-        cat "$tmp_yaml"
-    } > "$vendor_data_file"
-    rm -f "$tmp_yaml"
+    yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$vendor_data_file"
+    yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$vendor_data_file"
 }
 
 # patch functions receiving vendor-data file ($1) and image file ($2) as arguments
 
 patch_ssh_root_login() {
+    # Remove any existing restart command
+    yq -i -y 'del(.runcmd[] | select(. == "systemctl restart sshd"))' "$1"
     yq -i -y '.runcmd += ["sed -i ''s/^#\\?PermitRootLogin.*/PermitRootLogin yes/'' /etc/ssh/sshd_config"]' "$1"
+    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$1"
 }
 
 patch_ssh_password_auth() {
+    # Remove any existing restart command
+    yq -i -y 'del(.runcmd[] | select(. == "systemctl restart sshd"))' "$1"
     yq -i -y '.runcmd += ["sed -i ''s/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/'' /etc/ssh/sshd_config"]' "$1"
+    yq -i -y '.runcmd += ["systemctl restart sshd"]' "$1"
 }
 
 apply_patches(){
@@ -293,10 +288,13 @@ apply_patches(){
 create_template() {
     local url=$1
     local filename
+    
     local snippets_storage="${SNIPPETS_STORAGE_CONFIG[name]}"
     local disk_storage="${DISK_STORAGE_CONFIG[name]}"
+    
     local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
     local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
+    
     filename=$(basename "$url")
 
     echo "--- Creating template $NAME (ID: $ID) ---"
@@ -320,13 +318,23 @@ create_template() {
         quiet_run qemu-img resize "$working_image" "$DISK_SIZE"
     fi
 
+    local tmp_yaml
+    tmp_yaml=$(mktemp)
+
     # Create cloud-init snippets
-    generate_ci_vendor_data
+    generate_ci_vendor_data "$tmp_yaml"
 
     # Apply patches if specified
     if [[ -n "$PATCHES_TO_APPLY" ]]; then
-        apply_patches "$vendor_data_file" "$working_image"
+        apply_patches "$tmp_yaml" "$working_image"
     fi
+
+    # Prepend header and move to final file
+    {
+        echo "#cloud-config"
+        cat "$tmp_yaml"
+    } > "$vendor_data_file"
+    rm -f "$tmp_yaml"
 
     # Create a new VM with basic configuration
     echo "Creating VM $ID..."
