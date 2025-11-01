@@ -8,10 +8,15 @@ declare -A DISK_STORAGE_CONFIG=()
 declare -A SNIPPETS_STORAGE_CONFIG=()
 
 # --- Configuration ---
+SUPPORTED_DISTROS=("alpine" "debian" "ubuntu" "fedora" "rockylinux")
 
-# VM settings
+# ---  Template Settings ---
 ID=""                               # ID for the template
 NAME=""                             # Name for the template
+DISTRO=""                           # Distro of the image (auto-detected)
+CLOUD_IMAGE_URL=""                  # Cloud Image URL
+
+# VM settings
 DISK_SIZE=""                        # Disk size for the VM (e.g., 32G)
 BRIDGE="vmbr0"                      # The Proxmox network bridge for the VM (default: vmbr0)
 MEMORY="2048"                       # Memory in MB (default: 2048)
@@ -42,9 +47,6 @@ PATCHES_TO_APPLY=""                 # Space-separated list of patches to apply
 # Storage
 STORAGE="local-lvm"                 # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
 SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as STORAGE)
-
-# --- Cloud Image URL (required) ---
-CLOUD_IMAGE_URL=""
 
 # --- Functions ---
 
@@ -89,11 +91,14 @@ usage() {
     echo "  --domain-names <domains>       Space-separated domain names (e.g., 'example.com internal.local')"
     echo "  --patches <patches>            Space-separated list of patch names to apply"
     echo "  -h,  --help                    Display this help message"
+    
+    echo ""
+    echo "Supported distros: ${SUPPORTED_DISTROS[*]}"
 
     echo ""
     echo "Supported patches (for --patches):"
-    echo "  ssh_root_login         Enable SSH root login (PermitRootLogin yes)"
-    echo "  ssh_password_auth      Enable SSH password authentication (PasswordAuthentication yes)"
+    echo "  debian_locale                  Debian-specific: Set up locale"
+    echo "  debian_keyboard                Debian-specific: Set up keyboard layout"
 }
 
 # Function to parse Proxmox storage configuration and extract information
@@ -208,8 +213,6 @@ parse_storage_config() {
     storage_config["supports_snippets"]="$supports_snippets"
     # shellcheck disable=SC2034
     storage_config["snippets_dir"]="$snippets_dir"
-
-    return 0
 }
 
 # Function to create cloud-init vendor-data file
@@ -220,11 +223,11 @@ generate_ci_vendor_data() {
 
     # Create vendor-data file
     yq -y -n \
-        ' .package_update = true
+        " .package_update = true
         | .package_upgrade = true
         | .package_reboot_if_required = true
-        | .packages = ["qemu-guest-agent"]
-        ' > "$vendor_data_file"
+        | .packages = [\"qemu-guest-agent\"]
+        " > "$vendor_data_file"
 
     # Append extra packages if specified
     if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
@@ -247,9 +250,22 @@ generate_ci_vendor_data() {
     # Initialize runcmd array
     yq -i -y '.runcmd = []' "$vendor_data_file"
 
-    # Add final runcmd commands
-    yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$vendor_data_file"
-    yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$vendor_data_file"
+    # Add final runcmd commands based on distro
+    case "$DISTRO" in
+        debian|ubuntu|fedora|rockylinux)
+            yq -i -y ".runcmd += [\"systemctl enable qemu-guest-agent\"]" "$vendor_data_file"
+            yq -i -y ".runcmd += [\"systemctl start qemu-guest-agent\"]" "$vendor_data_file"
+            ;;
+        alpine)
+            yq -i -y ".runcmd += [\"rc-update add qemu-guest-agent default\"]" "$vendor_data_file"
+            yq -i -y ".runcmd += [\"service qemu-guest-agent start\"]" "$vendor_data_file"
+            ;;
+        *)
+            # Default to systemctl for unknown distros
+            yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$vendor_data_file"
+            yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$vendor_data_file"
+            ;;
+    esac
 }
 
 # patch functions params : vendor-data file ($1),  image file ($2) as arguments
@@ -297,31 +313,18 @@ apply_patches() {
 
 # Function to create the VM template
 create_template() {
-    local url=$1
-    local filename
-    
+    local image_file="$1"
     local snippets_storage="${SNIPPETS_STORAGE_CONFIG[name]}"
     local disk_storage="${DISK_STORAGE_CONFIG[name]}"
-    
     local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
     local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
-    
-    filename=$(basename "$url")
 
     echo "--- Creating template $NAME (ID: $ID) ---"
 
-    # Download the cloud image
-    if [[ ! -f "$filename" ]]; then
-        echo "Downloading image from $url..."
-        wget -q --show-progress -O "$filename" "$url"
-    else
-        echo "Image $filename already exists. Skipping download"
-    fi
-
     # Create a working copy of the image
-    local ext="${filename##*.}"
+    local ext="${image_file##*.}"
     local working_image="${NAME}.${ext}"
-    cp "$filename" "$working_image"
+    cp "$image_file" "$working_image"
 
     # Resize disk if size specified
     if [[ -n "$DISK_SIZE" ]]; then
@@ -340,12 +343,11 @@ create_template() {
         apply_patches "$tmp_yaml" "$working_image"
     fi
 
-    # Prepend header and move to final file
+    # Prepend header and create the final config file
     {
         echo "#cloud-config"
         cat "$tmp_yaml"
     } > "$vendor_data_file"
-    rm -f "$tmp_yaml"
 
     # Create a new VM with basic configuration
     echo "Creating VM $ID..."
@@ -381,8 +383,8 @@ create_template() {
     local qm_cmd=(qm set "$ID"
         --scsihw "virtio-scsi-single"
         --scsi0 "${disk_path},${DISK_FLAGS// /,}"
-        --boot "order=scsi0"
         --scsi1 "$disk_storage:cloudinit"
+        --boot "order=scsi0"
         --ciupgrade 1
         --cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml"
         --ipconfig0 "ip=dhcp"
@@ -417,7 +419,8 @@ create_template() {
     echo "Converting VM $ID to a template..."
     quiet_run qm template "$ID"
 
-    # Cleanup working image
+    # Cleanup
+    rm -f "$tmp_yaml"
     rm -f "$working_image"
 
     echo "--- Template $NAME created successfully! ---"
@@ -428,11 +431,26 @@ die() {
     exit 1
 }
 
+
 # --- Parameter validation ---
 require_param() {
     if [[ -z "$1" ]]; then
         die "Missing required argument: $2"
     fi
+}
+
+# --- Distro detection ---
+detect_distro() {
+    local image_file="$1"
+
+    # Try to detect the distro using virt-inspector
+    local detected
+    detected=$(virt-inspector --no-applications -a "$image_file" 2>/dev/null | grep '<distro>' | head -1 | sed -E 's/.*<distro>([^<]+)<\/distro>.*/\1/')
+    if [[ -z "$detected" ]]; then
+        die "Could not detect distro from image $image_file."
+    fi
+    DISTRO="$detected"
+    echo "Detected distro: $DISTRO"
 }
 
 require_file() {
@@ -520,8 +538,12 @@ check_and_install_dependency() {
 
 main() {
     
+
     check_and_install_dependency yq yq
-    
+    check_and_install_dependency wget wget
+    check_and_install_dependency qemu-img qemu-utils
+    check_and_install_dependency virt-inspector libguestfs-tools
+
     # Parse positional arguments
     if [[ "$#" -lt 3 ]]; then
         usage
@@ -637,7 +659,7 @@ main() {
         esac
     done
 
-    # Validate arguments after parsing
+    # Validate arguments after parsing (DISTRO is now set)
     validate_args
 
     # Set SNIPPETS_STORAGE to STORAGE if not specified
@@ -657,7 +679,23 @@ main() {
     # Validate storage capabilities
     validate_storage
 
-    create_template "$CLOUD_IMAGE_URL"
+    # Download the image if not present
+    local image_file
+    image_file=$(basename "$CLOUD_IMAGE_URL")
+    if [[ ! -f "$image_file" ]]; then
+        echo "Downloading image from $CLOUD_IMAGE_URL..."
+        wget -q --show-progress -O "$image_file" "$CLOUD_IMAGE_URL"
+    fi
+
+    # Detect distro from image
+    detect_distro "$image_file"
+
+    # Check if distro is supported
+    if [[ ! " ${SUPPORTED_DISTROS[*]} " == *" $DISTRO "* ]]; then
+        die "Unsupported distro '$DISTRO'. Supported distros: ${SUPPORTED_DISTROS[*]}"
+    fi
+
+    create_template "$image_file"
 }
 
 # Run the main function with all script arguments
