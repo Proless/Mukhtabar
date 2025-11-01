@@ -1,56 +1,79 @@
 #!/usr/bin/env bash
 
-# A script to create Proxmox VE templates for various Linux distributions.
+# ==============================================================================
+# Script: pve-template.sh
+# Description: Creates Proxmox VE templates from cloud images
+# Version: 1.0.0
+# Author: Proless
+# Repository: https://github.com/Proless/proxmox
+# ==============================================================================
 
 set -e
 
+# ==============================================================================
+# GLOBAL VARIABLES & CONFIGURATION
+# ==============================================================================
+IMAGE_FILE=""
+
+# Script constants
+declare -a SUPPORTED_DISTROS=("alpinelinux" "debian" "ubuntu" "fedora" "rocky")
+
+# Storage configuration
 declare -A DISK_STORAGE_CONFIG=()
 declare -A SNIPPETS_STORAGE_CONFIG=()
 
-# --- Configuration ---
-SUPPORTED_DISTROS=("alpine" "debian" "ubuntu" "fedora" "rockylinux")
-
-# ---  Template Settings ---
+# Template identification
 ID=""                               # ID for the template
 NAME=""                             # Name for the template
 DISTRO=""                           # Distro of the image (auto-detected)
 CLOUD_IMAGE_URL=""                  # Cloud Image URL
 
-# VM settings
-DISK_SIZE=""                        # Disk size for the VM (e.g., 32G)
-BRIDGE="vmbr0"                      # The Proxmox network bridge for the VM (default: vmbr0)
-MEMORY="2048"                       # Memory in MB (default: 2048)
-CORES="4"                           # Number of CPU cores (default: 4)
-DISK_FORMAT="qcow2"                 # Disk format: qcow2 (default), raw, or vmdk
-DISK_FLAGS="discard=on"             # Default disk flags
-DISPLAY_TYPE="std"                  # Display type (e.g., std, cirrus, vmware, qxl)
+# VM hardware configuration
+declare -A VM_CONFIG=(
+    [memory]="2048"                 # Memory in MB (default: 2048)
+    [cores]="4"                     # Number of CPU cores (default: 4)
+    [bridge]="vmbr0"                # The Proxmox network bridge for the VM (default: vmbr0)
+    [display]="std"                 # Display type (e.g., std, cirrus, vmware, qxl)
+)
 
-# Cloud-Init settings
-CI_USER=""
-PASSWORD=""
-SSH_KEYS=""
+# Disk configuration
+declare -A DISK_CONFIG=(
+    [size]=""                       # Disk size for the VM (e.g., 32G)
+    [format]="qcow2"                # Disk format: qcow2 (default), raw, or vmdk
+    [flags]="discard=on"            # Default disk flags
+    [storage]="local-lvm"           # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
+)
 
-# Localization settings
-TIMEZONE=""                         # Timezone
-KEYBOARD=""                         # Keyboard layout
-KEYBOARD_VARIANT=""                 # Keyboard variant
-LOCALE=""                           # Locale
+# Cloud-Init configuration
+declare -A CI_CONFIG=(
+    [user]=""                       # Cloud-Init user
+    [password]=""                   # Cloud-Init password
+    [ssh_keys]=""                   # Path to file with public SSH keys
+)
 
-# Network settings
-DNS_SERVERS=""                      # DNS servers (space-separated, e.g., 8.8.8.8 8.8.4.4)
-DOMAIN_NAMES=""                     # Domain names (space-separated, e.g., example.com internal.local)
+# Localization configuration
+declare -A LOCALE_CONFIG=(
+    [timezone]=""                   # Timezone
+    [keyboard]=""                   # Keyboard layout
+    [keyboard_variant]=""           # Keyboard variant
+    [locale]=""                     # Locale
+)
 
-# Other settings
-PACKAGES_TO_INSTALL=""              # Packages to install inside the VM template
+# Network configuration
+declare -A NETWORK_CONFIG=(
+    [dns_servers]=""                # DNS servers (space-separated, e.g., 8.8.8.8 8.8.4.4)
+    [domain_names]=""               # Domain names (space-separated, e.g., example.com internal.local)
+)
+
+# Advanced options
+PACKAGES_TO_INSTALL=""              # Space-separated list of packages to install inside the VM template
 PATCHES_TO_APPLY=""                 # Space-separated list of patches to apply
+SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as DISK_CONFIG[storage])
 
-# Storage
-STORAGE="local-lvm"                 # The Proxmox storage where the VM disk will be allocated (default: local-lvm)
-SNIPPETS_STORAGE=""                 # Storage where snippets are stored (default: same as STORAGE)
+# ==============================================================================
+# UTILITY
+# ==============================================================================
 
-# --- Functions ---
-
-# Function to run a command quietly (suppress output)
 quiet_run() {
     "$@" >/dev/null 2>&1 || {
         echo "Command failed: $*" >&2
@@ -58,7 +81,11 @@ quiet_run() {
     }
 }
 
-# Function to display usage information
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
 usage() {
     echo "Usage: $0 <cloud-image-url> <id> <name> [OPTIONS]"
     echo ""
@@ -72,8 +99,6 @@ usage() {
     echo "Options:"
     echo "  --user <user>                  Set the cloud-init user"
     echo "  --password <password>          Set the cloud-init password"
-    echo "  --storage <storage>            Proxmox storage for VM disk (default: local-lvm)"
-    echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --storage)"
     echo "  --bridge <bridge>              Network bridge for VM (default: vmbr0)"
     echo "  --memory <mb>                  Memory in MB (default: 2048)"
     echo "  --cores <num>                  Number of CPU cores (default: 4)"
@@ -83,12 +108,14 @@ usage() {
     echo "  --locale <locale>              Locale (e.g., en_US.UTF-8, de_DE.UTF-8)"
     echo "  --ssh-keys <file>              Path to file with public SSH keys (one per line, OpenSSH format)"
     echo "  --disk-size <size>             Disk size (e.g., 32G, 50G, 6144M)"
+    echo "  --disk-storage <storage>       Proxmox storage for VM disk (default: local-lvm)"
     echo "  --disk-format <format>         Disk format: ex. qcow2 (default)"
     echo "  --disk-flags <flags>           Space-separated Disk flags (default: discard=on)"
     echo "  --display <type>               Set the display/vga type (default: std)"
     echo "  --install <packages>           Space-separated list of packages to install in the template using cloud-init"
     echo "  --dns-servers <servers>        Space-separated DNS servers (e.g., '10.10.10.10 9.9.9.9')"
     echo "  --domain-names <domains>       Space-separated domain names (e.g., 'example.com internal.local')"
+    echo "  --snippets-storage <storage>   Proxmox storage for cloud-init snippets (default: same as --disk-storage)"
     echo "  --patches <patches>            Space-separated list of patch names to apply"
     echo "  -h,  --help                    Display this help message"
     
@@ -101,7 +128,274 @@ usage() {
     echo "  debian_keyboard                Debian-specific: Set up keyboard layout"
 }
 
-# Function to parse Proxmox storage configuration and extract information
+# ==============================================================================
+# CLOUD-INIT
+# ==============================================================================
+
+ci_create_base_config() {
+    local vendor_data_file="$1"
+
+    # Create base vendor-data file with update settings
+    yq -y -n \
+        " .package_update = true
+        | .package_upgrade = true
+        | .package_reboot_if_required = true
+        | .packages = []
+        | .runcmd = []
+        " > "$vendor_data_file"
+}
+
+ci_add_qemu_guest_agent() {
+    local vendor_data_file="$1"
+
+    # Add qemu-guest-agent package
+    yq -i -y ".packages += [\"qemu-guest-agent\"]" "$vendor_data_file"
+
+    # Add distro-specific commands to enable and start qemu-guest-agent
+    case "$DISTRO" in
+        debian|ubuntu|fedora|rocky)
+            yq -i -y ".runcmd += [\"systemctl enable qemu-guest-agent\"]" "$vendor_data_file"
+            yq -i -y ".runcmd += [\"systemctl start qemu-guest-agent\"]" "$vendor_data_file"
+            ;;
+        alpinelinux)
+            yq -i -y ".runcmd += [\"rc-update add qemu-guest-agent default\"]" "$vendor_data_file"
+            yq -i -y ".runcmd += [\"rc-service qemu-guest-agent start\"]" "$vendor_data_file"
+            ;;
+    esac
+}
+
+ci_add_extra_packages() {
+    local vendor_data_file="$1"
+
+    # Append extra packages if specified
+    if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
+        IFS=' ' read -ra pkg_array <<< "$PACKAGES_TO_INSTALL"
+        for pkg in "${pkg_array[@]}"; do
+            yq -i -y ".packages += [\"$pkg\"]" "$vendor_data_file"
+        done
+    fi
+}
+
+ci_add_localization() {
+    local vendor_data_file="$1"
+
+    # Add locale configuration
+    [[ -n "${LOCALE_CONFIG[locale]}" ]] && yq -i -y ".locale = \"${LOCALE_CONFIG[locale]}\"" "$vendor_data_file"
+    
+    # Add timezone configuration
+    [[ -n "${LOCALE_CONFIG[timezone]}" ]] && yq -i -y ".timezone = \"${LOCALE_CONFIG[timezone]}\"" "$vendor_data_file"
+
+    # Add keyboard configuration
+    if [[ -n "${LOCALE_CONFIG[keyboard]}" ]]; then
+        yq -i -y ".keyboard.layout = \"${LOCALE_CONFIG[keyboard]}\"" "$vendor_data_file"
+        [[ -n "${LOCALE_CONFIG[keyboard_variant]}" ]] && yq -i -y ".keyboard.variant = \"${LOCALE_CONFIG[keyboard_variant]}\"" "$vendor_data_file"
+    fi
+}
+
+ci_generate_vendor_data() {
+    local vendor_data_file="$1"
+
+    echo "Creating cloud-init vendor-data snippet..."
+
+    # Build the cloud-init configuration
+    ci_create_base_config "$vendor_data_file"
+    ci_add_qemu_guest_agent "$vendor_data_file"
+    ci_add_extra_packages "$vendor_data_file"
+    ci_add_localization "$vendor_data_file"
+}
+
+# ==============================================================================
+# PATCH
+# ==============================================================================
+
+patch_debian_locale() {
+    local vendor_data_file="$1"
+
+    # Remove the locale section from the YAML file
+    yq -i -y "del(.locale)" "$vendor_data_file"
+    # Add shell commands to runcmd for locale setup
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^# *\\\\(${LOCALE_CONFIG[locale]}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"grep -q \\\"^${LOCALE_CONFIG[locale]}\\\" /etc/locale.gen || echo \\\"${LOCALE_CONFIG[locale]}\\\" >> /etc/locale.gen\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"locale-gen\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"update-locale LANG=\\\"${LOCALE_CONFIG[locale]}\\\"\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"export LANG=\\\"${LOCALE_CONFIG[locale]}\\\"\"]" "$vendor_data_file"
+}
+
+patch_debian_keyboard() {
+    local vendor_data_file="$1"
+    
+    # Remove the keyboard section from the YAML file
+    yq -i -y "del(.keyboard)" "$vendor_data_file"
+    # Add required packages
+    yq -i -y ".packages += [\"keyboard-configuration\"]" "$vendor_data_file"
+    yq -i -y ".packages += [\"console-setup\"]" "$vendor_data_file"
+    # Add shell commands to runcmd for keyboard setup
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBMODEL.*/XKBMODEL=\\\"pc105\\\"/\\\" /etc/default/keyboard\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBLAYOUT.*/XKBLAYOUT=\\\"${LOCALE_CONFIG[keyboard]}\\\"/\\\" /etc/default/keyboard\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBVARIANT.*/XKBVARIANT=\\\"${LOCALE_CONFIG[keyboard_variant]}\\\"/\\\" /etc/default/keyboard\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"dpkg-reconfigure -f noninteractive keyboard-configuration\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"setupcon\"]" "$vendor_data_file"
+}
+
+apply_patches() {
+    local vendor_data_file="$1"
+    local image_file="$2"
+    
+    IFS=' ' read -ra patches_array <<< "$PATCHES_TO_APPLY"
+    for patch in "${patches_array[@]}"; do
+        local func="patch_${patch}"
+        if declare -f "$func" > /dev/null; then
+            echo "Applying patch $patch..."
+            "$func" "$vendor_data_file" "$image_file"
+        else
+            echo "Warning: Unknown patch '$patch' specified. Skipping."
+        fi
+    done
+}
+
+# ==============================================================================
+# TEMPLATE
+# ==============================================================================
+
+prepare_disk() {
+    local image_file="$1"
+
+    # Resize disk if size specified
+    if [[ -n "${DISK_CONFIG[size]}" ]]; then
+        echo "Resizing disk to ${DISK_CONFIG[size]}..."
+        quiet_run qemu-img resize "$image_file" "${DISK_CONFIG[size]}"
+    fi
+}
+
+create_vm() {
+    local image_file="$1"
+
+    echo "Creating VM $ID..."
+    quiet_run qm create "$ID" --name "$NAME" \
+        --memory "${VM_CONFIG[memory]}" \
+        --cpu host \
+        --cores "${VM_CONFIG[cores]}" \
+        --net0 "virtio,bridge=${VM_CONFIG[bridge]}" \
+        --agent enabled=1 \
+        --ostype l26 \
+        --vga "${VM_CONFIG[display]}" \
+        --serial0 socket
+
+    echo "Importing disk..."
+    quiet_run qm importdisk "$ID" "$image_file" "${DISK_STORAGE_CONFIG[name]}" --format "${DISK_CONFIG[format]}"
+}
+
+configure_vm() {
+    echo "Configuring VM storage and cloud-init..."
+
+    # Build disk path based on storage type
+    local disk_path
+    if [[ "${DISK_STORAGE_CONFIG[type]}" =~ ^(lvmthin|zfspool)$ ]]; then
+        # Block storage types use simple format: storage:vm-ID-disk-N
+        disk_path="${DISK_STORAGE_CONFIG[name]}:vm-$ID-disk-0"
+    else
+        # Directory-based storage types use: storage:ID/vm-ID-disk-N.format
+        disk_path="${DISK_STORAGE_CONFIG[name]}:$ID/vm-$ID-disk-0.${DISK_CONFIG[format]}"
+    fi
+
+    # Build qm set command with conditional cloud-init parameters
+    local qm_cmd=(qm set "$ID"
+        --scsihw "virtio-scsi-single"
+        --scsi0 "${disk_path},${DISK_CONFIG[flags]// /,}"
+        --scsi1 "${DISK_STORAGE_CONFIG[name]}:cloudinit"
+        --boot "order=scsi0"
+        --ciupgrade 1
+        --cicustom "vendor=${SNIPPETS_STORAGE_CONFIG[name]}:snippets/ci-vendor-data-${ID}.yml"
+        --ipconfig0 "ip=dhcp"
+    )
+
+    # Add DNS servers if specified
+    [[ -n "${NETWORK_CONFIG[dns_servers]}" ]] && qm_cmd+=(--nameserver "${NETWORK_CONFIG[dns_servers]}")
+
+    # Add search domain if specified
+    [[ -n "${NETWORK_CONFIG[domain_names]}" ]] && qm_cmd+=(--searchdomain "${NETWORK_CONFIG[domain_names]}")
+
+    # Add cloud-init user settings if user is specified
+    if [[ -n "${CI_CONFIG[user]}" ]]; then
+        qm_cmd+=(--ciuser "${CI_CONFIG[user]}")
+        [[ -n "${CI_CONFIG[password]}" ]] && qm_cmd+=(--cipassword "${CI_CONFIG[password]}")
+        [[ -n "${CI_CONFIG[ssh_keys]}" ]] && qm_cmd+=(--sshkeys "${CI_CONFIG[ssh_keys]}")
+    fi
+
+    quiet_run "${qm_cmd[@]}"
+}
+
+# Function to create the VM template
+create_template() {
+    echo "Creating template $NAME (ID: $ID)..."
+
+    local tmp_yaml
+    local image_copy
+    local vendor_data_file
+
+    tmp_yaml=$(mktemp)
+    image_copy="${NAME}.${IMAGE_FILE##*.}"
+    vendor_data_file="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}/ci-vendor-data-${ID}.yml"
+    
+    # Create a copy of the image
+    cp "$IMAGE_FILE" "$image_copy"
+
+    # Create cloud-init snippets
+    ci_generate_vendor_data "$tmp_yaml"
+    
+    # Apply patches if specified
+    if [[ -n "$PATCHES_TO_APPLY" ]]; then
+        apply_patches "$tmp_yaml" "$image_copy"
+    fi
+
+    # Prepend header and create the final ci config file
+    {
+        echo "#cloud-config"
+        cat "$tmp_yaml"
+    } > "$vendor_data_file"
+
+    # Prepare the disk
+    prepare_disk "$image_copy"
+
+    # Create VM
+    create_vm "$image_copy"
+
+    # Configure VM
+    configure_vm
+
+    # Convert to template
+    echo "Converting VM $ID to a template..."
+    quiet_run qm template "$ID"
+    
+    # Clean up temporary files
+    rm -f "$tmp_yaml"
+    rm -f "$image_copy"
+
+    echo "Template $NAME created successfully"
+}
+
+# ==============================================================================
+# ARGUMENT
+# ==============================================================================
+
+require_arg_file() {
+    if [[ ! -f "$1" || ! -s "$1" ]]; then
+        die "File not found or empty: $2 ($1)"
+    fi
+}
+
+require_arg_string() {
+    if [[ -z "$1" ]]; then
+        die "Missing required argument: $2"
+    fi
+}
+
+require_arg_number() {
+    if ! [[ "$1" =~ ^[0-9]+$ && "$1" -gt 0 ]]; then
+        die "Argument '$2' must be a positive number (got '$1')"
+    fi
+}
+
 parse_storage_config() {
     local storage="$1"
     local -n storage_config="$2"
@@ -215,268 +509,88 @@ parse_storage_config() {
     storage_config["snippets_dir"]="$snippets_dir"
 }
 
-# Function to create cloud-init vendor-data file
-generate_ci_vendor_data() {
-    local vendor_data_file="$1"
-
-    echo "Creating cloud-init vendor-data snippet..."
-
-    # Create vendor-data file
-    yq -y -n \
-        " .package_update = true
-        | .package_upgrade = true
-        | .package_reboot_if_required = true
-        | .packages = [\"qemu-guest-agent\"]
-        " > "$vendor_data_file"
-
-    # Append extra packages if specified
-    if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
-        IFS=' ' read -ra pkg_array <<< "$PACKAGES_TO_INSTALL"
-        for pkg in "${pkg_array[@]}"; do
-            yq -i -y ".packages += [\"$pkg\"]" "$vendor_data_file"
-        done
+parse_arguments() {
+    # Validate minimum arguments
+    if [[ "$#" -lt 3 ]]; then
+        usage
+        exit 1
     fi
 
-    [[ -n "$LOCALE" ]] && yq -i -y ".locale = \"$LOCALE\"" "$vendor_data_file"
-    [[ -n "$TIMEZONE" ]] && yq -i -y ".timezone = \"$TIMEZONE\"" "$vendor_data_file"
-
-    if [[ -n "$KEYBOARD" ]]; then
-        yq -i -y ".keyboard.layout = \"$KEYBOARD\"" "$vendor_data_file"
-        if [[ -n "$KEYBOARD_VARIANT" ]]; then
-            yq -i -y ".keyboard.variant = \"$KEYBOARD_VARIANT\"" "$vendor_data_file"
-        fi
-    fi
-
-    # Initialize runcmd array
-    yq -i -y '.runcmd = []' "$vendor_data_file"
-
-    # Add final runcmd commands based on distro
-    case "$DISTRO" in
-        debian|ubuntu|fedora|rockylinux)
-            yq -i -y ".runcmd += [\"systemctl enable qemu-guest-agent\"]" "$vendor_data_file"
-            yq -i -y ".runcmd += [\"systemctl start qemu-guest-agent\"]" "$vendor_data_file"
-            ;;
-        alpine)
-            yq -i -y ".runcmd += [\"rc-update add qemu-guest-agent default\"]" "$vendor_data_file"
-            yq -i -y ".runcmd += [\"service qemu-guest-agent start\"]" "$vendor_data_file"
-            ;;
-        *)
-            # Default to systemctl for unknown distros
-            yq -i -y '.runcmd += ["systemctl enable qemu-guest-agent"]' "$vendor_data_file"
-            yq -i -y '.runcmd += ["systemctl start qemu-guest-agent"]' "$vendor_data_file"
-            ;;
-    esac
-}
-
-# patch functions params : vendor-data file ($1),  image file ($2) as arguments
-
-patch_debian_locale() {
-    # Remove the locale section from the YAML file
-    yq -i -y "del(.locale)" "$1"
-    # Add shell commands to runcmd for locale setup
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^# *\\\\(${LOCALE}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$1"
-    yq -i -y ".runcmd += [\"grep -q \\\"^${LOCALE}\\\" /etc/locale.gen || echo \\\"${LOCALE}\\\" >> /etc/locale.gen\"]" "$1"
-    yq -i -y ".runcmd += [\"locale-gen\"]" "$1"
-    yq -i -y ".runcmd += [\"update-locale LANG=\\\"${LOCALE}\\\"\"]" "$1"
-    yq -i -y ".runcmd += [\"export LANG=\\\"${LOCALE}\\\"\"]" "$1"
-}
-
-patch_debian_keyboard() {
-    # Remove the keyboard section from the YAML file
-    yq -i -y "del(.keyboard)" "$1"
-    # Add required packages
-    yq -i -y ".packages += [\"keyboard-configuration\"]" "$1"
-    yq -i -y ".packages += [\"console-setup\"]" "$1"
-    # Add shell commands to runcmd for keyboard setup
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBMODEL.*/XKBMODEL=\\\"pc105\\\"/\\\" /etc/default/keyboard\"]" "$1"
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBLAYOUT.*/XKBLAYOUT=\\\"${KEYBOARD}\\\"/\\\" /etc/default/keyboard\"]" "$1"
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^XKBVARIANT.*/XKBVARIANT=\\\"${KEYBOARD_VARIANT}\\\"/\\\" /etc/default/keyboard\"]" "$1"
-    yq -i -y ".runcmd += [\"dpkg-reconfigure -f noninteractive keyboard-configuration\"]" "$1"
-    yq -i -y ".runcmd += [\"setupcon\"]" "$1"
-}
-
-apply_patches() {
-    local vendor_data_file="$1"
-    local image_file="$2"
-    
-    IFS=' ' read -ra patches_array <<< "$PATCHES_TO_APPLY"
-    for patch in "${patches_array[@]}"; do
-        local func="patch_${patch}"
-        if declare -f "$func" > /dev/null; then
-            echo "Applying patch $patch..."
-            "$func" "$vendor_data_file" "$image_file"
-        else
-            echo "Warning: Unknown patch '$patch' specified. Skipping."
+    # Ensure first three arguments are not options
+    for argn in 1 2 3; do
+        arg="${!argn}"
+        if [[ "$arg" == --* ]]; then
+            die "Argument $argn must be a value, not an option (got '$arg')"
         fi
     done
-}
 
-# Function to create the VM template
-create_template() {
-    local image_file="$1"
-    local snippets_storage="${SNIPPETS_STORAGE_CONFIG[name]}"
-    local disk_storage="${DISK_STORAGE_CONFIG[name]}"
-    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
-    local vendor_data_file="${snippets_dir}/ci-vendor-data-${ID}.yml"
+    # Set required positional arguments
+    CLOUD_IMAGE_URL="$1"
+    ID="$2"
+    NAME="$3"
+    shift 3
 
-    echo "--- Creating template $NAME (ID: $ID) ---"
+    # Parse optional arguments
+    while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+            --user)             CI_CONFIG[user]="$2"; shift 2 ;;
+            --password)         CI_CONFIG[password]="$2"; shift 2 ;;
+            --memory)           VM_CONFIG[memory]="$2"; shift 2 ;;
+            --cores)            VM_CONFIG[cores]="$2"; shift 2 ;;
+            --bridge)           VM_CONFIG[bridge]="$2"; shift 2 ;;
+            --disk-size)        DISK_CONFIG[size]="$2"; shift 2 ;;
+            --disk-storage)     DISK_CONFIG[storage]="$2"; SNIPPETS_STORAGE="${SNIPPETS_STORAGE:-$2}"; shift 2 ;;
+            --disk-format)      DISK_CONFIG[format]="$2"; shift 2 ;;
+            --disk-flags)       DISK_CONFIG[flags]="$2"; shift 2 ;;
+            --display)          VM_CONFIG[display]="$2"; shift 2 ;;
+            --timezone)         LOCALE_CONFIG[timezone]="$2"; shift 2 ;;
+            --keyboard)         LOCALE_CONFIG[keyboard]="$2"; shift 2 ;;
+            --keyboard-variant) LOCALE_CONFIG[keyboard_variant]="$2"; shift 2 ;;
+            --locale)           LOCALE_CONFIG[locale]="$2"; shift 2 ;;
+            --ssh-keys)         CI_CONFIG[ssh_keys]="$2"; shift 2 ;;
+            --dns-servers)      NETWORK_CONFIG[dns_servers]="$2"; shift 2 ;;
+            --domain-names)     NETWORK_CONFIG[domain_names]="$2"; shift 2 ;;
+            --snippets-storage) SNIPPETS_STORAGE="$2"; shift 2 ;;
+            --install)          PACKAGES_TO_INSTALL="$2"; shift 2 ;;
+            --patches)          PATCHES_TO_APPLY="$2"; shift 2 ;;
+            -h|--help)          usage; exit 0 ;;
+            *)                  break ;;
+        esac
+    done
 
-    # Create a working copy of the image
-    local ext="${image_file##*.}"
-    local working_image="${NAME}.${ext}"
-    cp "$image_file" "$working_image"
-
-    # Resize disk if size specified
-    if [[ -n "$DISK_SIZE" ]]; then
-        echo "Resizing disk to $DISK_SIZE..."
-        quiet_run qemu-img resize "$working_image" "$DISK_SIZE"
-    fi
-
-    local tmp_yaml
-    tmp_yaml=$(mktemp)
-
-    # Create cloud-init snippets
-    generate_ci_vendor_data "$tmp_yaml"
-
-    # Apply patches if specified
-    if [[ -n "$PATCHES_TO_APPLY" ]]; then
-        apply_patches "$tmp_yaml" "$working_image"
-    fi
-
-    # Prepend header and create the final config file
-    {
-        echo "#cloud-config"
-        cat "$tmp_yaml"
-    } > "$vendor_data_file"
-
-    # Create a new VM with basic configuration
-    echo "Creating VM $ID..."
-    quiet_run qm create "$ID" --name "$NAME" \
-        --memory "$MEMORY" \
-        --cpu host \
-        --cores "$CORES" \
-        --net0 virtio,bridge="$BRIDGE" \
-        --agent enabled=1 \
-        --ostype l26 \
-        --vga "$DISPLAY_TYPE" \
-        --serial0 socket
-
-    # Import the downloaded disk to the VM's storage
-    echo "Importing disk..."
-    quiet_run qm importdisk "$ID" "$working_image" "$disk_storage" --format "$DISK_FORMAT"
-
-    # Configure storage, boot, and cloud-init
-    echo "Configuring storage and cloud-init..."
-
-    # Build disk path based on storage type
-    local disk_path
-    local storage_type="${DISK_STORAGE_CONFIG[type]}"
-    if [[ "$storage_type" =~ ^(lvmthin|zfspool)$ ]]; then
-        # Block storage types use simple format: storage:vm-ID-disk-N
-        disk_path="$disk_storage:vm-$ID-disk-0"
+    # Parse storage configuration
+    parse_storage_config "${DISK_CONFIG[storage]}" DISK_STORAGE_CONFIG
+    if [[ "$SNIPPETS_STORAGE" == "${DISK_CONFIG[storage]}" ]]; then
+        # Copy storage config
+        for key in "${!DISK_STORAGE_CONFIG[@]}"; do
+            SNIPPETS_STORAGE_CONFIG["$key"]="${DISK_STORAGE_CONFIG[$key]}"
+        done
     else
-        # Directory-based storage types use: storage:ID/vm-ID-disk-N.format
-        disk_path="$disk_storage:$ID/vm-$ID-disk-0.${DISK_FORMAT}"
-    fi
-
-    # Build qm set command with conditional cloud-init parameters
-    local qm_cmd=(qm set "$ID"
-        --scsihw "virtio-scsi-single"
-        --scsi0 "${disk_path},${DISK_FLAGS// /,}"
-        --scsi1 "$disk_storage:cloudinit"
-        --boot "order=scsi0"
-        --ciupgrade 1
-        --cicustom "vendor=${snippets_storage}:snippets/ci-vendor-data-${ID}.yml"
-        --ipconfig0 "ip=dhcp"
-    )
-
-    # Add DNS servers if specified
-    if [[ -n "$DNS_SERVERS" ]]; then
-        qm_cmd+=(--nameserver "$DNS_SERVERS")
-    fi
-
-    # Add search domain if specified
-    if [[ -n "$DOMAIN_NAMES" ]]; then
-        qm_cmd+=(--searchdomain "$DOMAIN_NAMES")
-    fi
-
-    # Add cloud-init user settings if user is specified
-    if [[ -n "$CI_USER" ]]; then
-        qm_cmd+=(--ciuser "$CI_USER")
-
-        if [[ -n "$PASSWORD" ]]; then
-            qm_cmd+=(--cipassword "$PASSWORD")
-        fi
-
-        if [[ -n "$SSH_KEYS" ]]; then
-            qm_cmd+=(--sshkeys "$SSH_KEYS")
-        fi
-    fi
-
-    quiet_run "${qm_cmd[@]}"
-
-    # Convert the VM to a template
-    echo "Converting VM $ID to a template..."
-    quiet_run qm template "$ID"
-
-    # Cleanup
-    rm -f "$tmp_yaml"
-    rm -f "$working_image"
-
-    echo "--- Template $NAME created successfully! ---"
-}
-
-die() {
-    echo "Error: $*" >&2
-    exit 1
-}
-
-
-# --- Parameter validation ---
-require_param() {
-    if [[ -z "$1" ]]; then
-        die "Missing required argument: $2"
-    fi
-}
-
-# --- Distro detection ---
-detect_distro() {
-    local image_file="$1"
-
-    # Try to detect the distro using virt-inspector
-    local detected
-    detected=$(virt-inspector --no-applications -a "$image_file" 2>/dev/null | grep '<distro>' | head -1 | sed -E 's/.*<distro>([^<]+)<\/distro>.*/\1/')
-    if [[ -z "$detected" ]]; then
-        die "Could not detect distro from image $image_file."
-    fi
-    DISTRO="$detected"
-    echo "Detected distro: $DISTRO"
-}
-
-require_file() {
-    if [[ ! -f "$1" ]]; then
-        die "File not found: $2 ($1)"
+        parse_storage_config "$SNIPPETS_STORAGE" SNIPPETS_STORAGE_CONFIG
     fi
 }
 
 validate_args() {
+    # Validate required parameters
+    require_arg_string "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
+    require_arg_number "$ID" "id (argument 2)"
+    require_arg_string "$NAME" "name (argument 3)"
 
-    require_param "$CLOUD_IMAGE_URL" "cloud image url (argument 1)"
-    require_param "$ID" "id (argument 2)"
-    require_param "$NAME" "name (argument 3)"
+    require_arg_string "${DISK_CONFIG[storage]}" "disk storage (--disk-storage)"
+    require_arg_string "${DISK_CONFIG[format]}" "disk format (--disk-format)"
+    require_arg_string "${VM_CONFIG[bridge]}" "network bridge (--bridge)"
 
-    if [[ -n "$CI_USER" ]]; then
-        if [[ -z "$PASSWORD" && -z "$SSH_KEYS" ]]; then
+    require_arg_number "${VM_CONFIG[memory]}" "memory (--memory)"
+    require_arg_number "${VM_CONFIG[cores]}" "cores (--cores)"
+
+    if [[ -n "${CI_CONFIG[user]}" ]]; then
+        if [[ -z "${CI_CONFIG[password]}" && -z "${CI_CONFIG[ssh_keys]}" ]]; then
             die "You must provide at least one of --password or --ssh-keys when --user is specified"
         fi
 
         # If SSH keys provided, check file existence
-        if [[ -n "$SSH_KEYS" ]]; then
-            require_file "$SSH_KEYS" "SSH keys file"
-
-            if [[ ! -s "$SSH_KEYS" ]]; then
-                die "SSH keys file '$SSH_KEYS' is empty"
-            fi
+        if [[ -n "${CI_CONFIG[ssh_keys]}" ]]; then
+            require_arg_file "${CI_CONFIG[ssh_keys]}" "SSH keys file"
         fi
 
     else
@@ -496,206 +610,106 @@ validate_storage() {
 
     # Validate disk format is supported by the storage type
     local supported_formats="${DISK_STORAGE_CONFIG[image_formats]}"
-    if [[ ! ",$supported_formats," == *",$DISK_FORMAT,"* ]]; then
-        die "Disk format '$DISK_FORMAT' is not supported by storage '${DISK_STORAGE_CONFIG[name]}' (type: ${DISK_STORAGE_CONFIG[type]}). Supported formats: $supported_formats"
+    if [[ ! ",$supported_formats," == *",${DISK_CONFIG[format]},"* ]]; then
+        die "Disk format '${DISK_CONFIG[format]}' is not supported by storage '${DISK_STORAGE_CONFIG[name]}' (type: ${DISK_STORAGE_CONFIG[type]}). Supported formats: $supported_formats"
     fi
 
     # Validate snippets storage supports snippets
     if [[ "${SNIPPETS_STORAGE_CONFIG[supports_snippets]}" != "true" ]]; then
         die "Storage '${SNIPPETS_STORAGE_CONFIG[name]}' does not support snippets. Supported content: ${SNIPPETS_STORAGE_CONFIG[content]}"
     fi
-}
 
-# Function to check for a dependency and install if missing
-check_and_install_dependency() {
-    local dep="$1"
-    local package="$2"
-    if ! command -v "$dep" &> /dev/null; then
-        echo "$dep is not installed. Would you like to install it now? [Y/n]" >&2
-        read -r yn
-        case $yn in
-            [Yy]*|"")
-                echo "Installing $package..." >&2
-                quiet_run apt update && quiet_run apt install -y "$package"
-                if ! command -v "$dep" &> /dev/null; then
-                    echo "$dep installation failed. Exiting." >&2
-                    exit 1
-                fi
-                ;;
-            [Nn]*)
-                echo "$dep is required. Exiting." >&2
-                exit 1
-                ;;
-            *)
-                echo "Please answer yes or no." >&2
-                exit 1
-                ;;
-        esac
+    # Verify actual directories are writable (Proxmox-specific)
+    local snippets_dir="${SNIPPETS_STORAGE_CONFIG[snippets_dir]}"
+    if [[ -n "$snippets_dir" ]] && [[ ! -w "$snippets_dir" ]]; then
+        die "Snippets directory not writable: $snippets_dir"
     fi
 }
 
-# --- Main script logic ---
-
-main() {
+validate_distro() {
+    # Detect the distro using virt-inspector
+    DISTRO=$(virt-inspector --no-applications -a "$IMAGE_FILE" 2>/dev/null | grep '<distro>' | head -1 | sed -E 's/.*<distro>([^<]+)<\/distro>.*/\1/')
     
-
-    check_and_install_dependency yq yq
-    check_and_install_dependency wget wget
-    check_and_install_dependency qemu-img qemu-utils
-    check_and_install_dependency virt-inspector libguestfs-tools
-
-    # Parse positional arguments
-    if [[ "$#" -lt 3 ]]; then
-        usage
-        exit 1
+    if [[ -z "$DISTRO" ]]; then
+        die "Failed to detect distro from image"
     fi
-
-    # Ensure first three arguments are not options
-    for argn in 1 2 3; do
-        arg="${!argn}"
-        if [[ "$arg" == --* ]]; then
-            echo "Error: Argument $argn must be a value, not an option (got '$arg')"
-            echo ""
-            usage
-            exit 1
-        fi
-    done
-
-    CLOUD_IMAGE_URL="$1"
-    ID="$2"
-    NAME="$3"
-    shift 3
-
-    # Parse command-line options
-    while [[ "$#" -gt 0 ]]; do
-        case "$1" in
-            --user)
-                CI_USER="$2"
-                shift 2
-                ;;
-            --password)
-                PASSWORD="$2"
-                shift 2
-                ;;
-            --install)
-                PACKAGES_TO_INSTALL="$2"
-                shift 2
-                ;;
-            --storage)
-                STORAGE="$2"
-                shift 2
-                ;;
-            --snippets-storage)
-                SNIPPETS_STORAGE="$2"
-                shift 2
-                ;;
-            --bridge)
-                BRIDGE="$2"
-                shift 2
-                ;;
-            --disk-size)
-                DISK_SIZE="$2"
-                shift 2
-                ;;
-            --memory)
-                MEMORY="$2"
-                shift 2
-                ;;
-            --cores)
-                CORES="$2"
-                shift 2
-                ;;
-            --timezone)
-                TIMEZONE="$2"
-                shift 2
-                ;;
-            --keyboard)
-                KEYBOARD="$2"
-                shift 2
-                ;;
-            --keyboard-variant)
-                KEYBOARD_VARIANT="$2"
-                shift 2
-                ;;
-            --locale)
-                LOCALE="$2"
-                shift 2
-                ;;
-            --dns-servers)
-                DNS_SERVERS="$2"
-                shift 2
-                ;;
-            --domain-names)
-                DOMAIN_NAMES="$2"
-                shift 2
-                ;;
-            --ssh-keys)
-                SSH_KEYS="$2"
-                shift 2
-                ;;
-            --disk-format)
-                DISK_FORMAT="$2"
-                shift 2
-                ;;
-            --disk-flags)
-                DISK_FLAGS="$2"
-                shift 2
-                ;;
-            --display)
-                DISPLAY_TYPE="$2"
-                shift 2
-                ;;
-            --patches)
-                PATCHES_TO_APPLY="$2"
-                shift 2
-                ;;
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            *)
-                break # Stop processing options
-                ;;
-        esac
-    done
-
-    # Validate arguments after parsing (DISTRO is now set)
-    validate_args
-
-    # Set SNIPPETS_STORAGE to STORAGE if not specified
-    SNIPPETS_STORAGE="${SNIPPETS_STORAGE:-$STORAGE}"
-
-    # Parse storage configuration
-    parse_storage_config "$STORAGE" DISK_STORAGE_CONFIG
-    if [[ "$SNIPPETS_STORAGE" == "$STORAGE" ]]; then
-        # Copy storage config
-        for key in "${!DISK_STORAGE_CONFIG[@]}"; do
-            SNIPPETS_STORAGE_CONFIG["$key"]="${DISK_STORAGE_CONFIG[$key]}"
-        done
-    else
-        parse_storage_config "$SNIPPETS_STORAGE" SNIPPETS_STORAGE_CONFIG
-    fi
-
-    # Validate storage capabilities
-    validate_storage
-
-    # Download the image if not present
-    local image_file
-    image_file=$(basename "$CLOUD_IMAGE_URL")
-    if [[ ! -f "$image_file" ]]; then
-        echo "Downloading image from $CLOUD_IMAGE_URL..."
-        wget -q --show-progress -O "$image_file" "$CLOUD_IMAGE_URL"
-    fi
-
-    # Detect distro from image
-    detect_distro "$image_file"
 
     # Check if distro is supported
     if [[ ! " ${SUPPORTED_DISTROS[*]} " == *" $DISTRO "* ]]; then
         die "Unsupported distro '$DISTRO'. Supported distros: ${SUPPORTED_DISTROS[*]}"
     fi
+    
+    echo "Detected distro: $DISTRO"
+}
 
-    create_template "$image_file"
+# ==============================================================================
+# MAIN
+# ==============================================================================
+
+download_image() {
+    local image_file
+
+    # Extract filename from URL
+    image_file=$(basename "$CLOUD_IMAGE_URL")
+
+    # Download if not already present
+    if [[ ! -f "$image_file" ]]; then
+        echo "Downloading image from $CLOUD_IMAGE_URL..."
+        wget -q --show-progress -O "$image_file" "$CLOUD_IMAGE_URL"
+    fi
+
+    # Set the full path to the image file
+    IMAGE_FILE=$(realpath "$image_file")
+}
+
+install_dependencies() {
+    echo "Checking required dependencies..."
+    local packages=()
+    if ! command -v yq &> /dev/null; then
+        packages+=("yq")
+    fi
+    if ! command -v wget &> /dev/null; then
+        packages+=("wget")
+    fi
+    if ! command -v qemu-img &> /dev/null; then
+        packages+=("qemu-utils")
+    fi
+    if ! command -v virt-inspector &> /dev/null; then
+        packages+=("libguestfs-tools")
+    fi
+
+    if [[ "${#packages[@]}" -gt 0 ]]; then
+        echo "Installing missing dependencies: ${packages[*]}..."
+        quiet_run apt update
+        quiet_run apt install -y "${packages[@]}" || die "Failed to install dependencies: ${packages[*]}"
+    fi
+}
+
+main() {
+    echo "--- Proxmox VE Template Creation Script ---"
+    
+    # Install dependencies
+    install_dependencies
+
+    # Parse and populate variables from command-line arguments
+    parse_arguments "$@"
+
+    # Validate arguments
+    validate_args
+
+    # Validate storage
+    validate_storage
+
+    # Download the image
+    download_image
+
+    # Detect distro from image
+    validate_distro
+
+    # Create the template
+    create_template
+
+    echo "--- Proxmox VE Template Creation Script ---"
 }
 
 # Run the main function with all script arguments
