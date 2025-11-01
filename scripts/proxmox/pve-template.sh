@@ -124,8 +124,9 @@ usage() {
 
     echo ""
     echo "Supported patches (for --patches):"
-    echo "  debian_locale                  Debian-specific: Set up locale"
-    echo "  debian_keyboard                Debian-specific: Set up keyboard layout"
+    echo ""
+    echo "  enable_ssh_password_auth       Enable SSH password authentication"
+    echo "  enable_ssh_root_login          Enable root login via SSH"
 }
 
 # ==============================================================================
@@ -237,10 +238,66 @@ patch_debian_keyboard() {
     yq -i -y ".runcmd += [\"setupcon\"]" "$vendor_data_file"
 }
 
+patch_enable_ssh_password_auth() {
+    local vendor_data_file="$1"
+    
+    # Enable SSH password authentication (same for all distros)
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PasswordAuthentication.*/PasswordAuthentication yes/\\\" /etc/ssh/sshd_config\"]" "$vendor_data_file"
+    
+    # Restart SSH service (distro-specific)
+    case "$DISTRO" in
+        debian|ubuntu)
+            yq -i -y ".runcmd += [\"systemctl restart ssh\"]" "$vendor_data_file"
+            ;;
+        fedora|rocky)
+            yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$vendor_data_file"
+            ;;
+        alpinelinux)
+            yq -i -y ".runcmd += [\"rc-service sshd restart\"]" "$vendor_data_file"
+            ;;
+    esac
+}
+
+patch_enable_ssh_root_login() {
+    local vendor_data_file="$1"
+    
+    # Enable root login via SSH (same for all distros)
+    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^#?PermitRootLogin.*/PermitRootLogin yes/\\\" /etc/ssh/sshd_config\"]" "$vendor_data_file"
+    
+    # Restart SSH service (distro-specific)
+    case "$DISTRO" in
+        debian|ubuntu)
+            yq -i -y ".runcmd += [\"systemctl restart ssh\"]" "$vendor_data_file"
+            ;;
+        fedora|rocky)
+            yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$vendor_data_file"
+            ;;
+        alpinelinux)
+            yq -i -y ".runcmd += [\"rc-service sshd restart\"]" "$vendor_data_file"
+            ;;
+    esac
+}
+
+patch_rocky_keyboard() {
+    local vendor_data_file="$1"
+    
+    # Remove the keyboard section from the YAML file
+    yq -i -y "del(.keyboard)" "$vendor_data_file"
+    
+    # Add localectl command to set keyboard layout
+    yq -i -y ".runcmd += [\"localectl set-keymap ${LOCALE_CONFIG[keyboard]}\"]" "$vendor_data_file"
+}
+
 apply_patches() {
     local vendor_data_file="$1"
     local image_file="$2"
-    
+
+    # Add custom patches based on the distro
+    case "$DISTRO" in
+        debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard" ;;
+        rocky)      PATCHES_TO_APPLY+=" rocky_keyboard" ;;
+    esac
+
     IFS=' ' read -ra patches_array <<< "$PATCHES_TO_APPLY"
     for patch in "${patches_array[@]}"; do
         local func="patch_${patch}"
@@ -275,7 +332,7 @@ create_vm() {
         --memory "${VM_CONFIG[memory]}" \
         --cpu host \
         --cores "${VM_CONFIG[cores]}" \
-        --net0 "virtio,bridge=${VM_CONFIG[bridge]}" \
+        --net0 "virtio,macaddr=00:00:00:00:00:00,bridge=${VM_CONFIG[bridge]}" \
         --agent enabled=1 \
         --ostype l26 \
         --vga "${VM_CONFIG[display]}" \
@@ -342,11 +399,9 @@ create_template() {
 
     # Create cloud-init snippets
     ci_generate_vendor_data "$tmp_yaml"
-    
-    # Apply patches if specified
-    if [[ -n "$PATCHES_TO_APPLY" ]]; then
-        apply_patches "$tmp_yaml" "$image_copy"
-    fi
+
+    # Apply patches
+    apply_patches "$tmp_yaml" "$image_copy"
 
     # Prepend header and create the final ci config file
     {
@@ -627,6 +682,8 @@ validate_storage() {
 }
 
 validate_distro() {
+    echo "Detecting distro from image..."
+    
     # Detect the distro using virt-inspector
     DISTRO=$(virt-inspector --no-applications -a "$IMAGE_FILE" 2>/dev/null | grep '<distro>' | head -1 | sed -E 's/.*<distro>([^<]+)<\/distro>.*/\1/')
     
