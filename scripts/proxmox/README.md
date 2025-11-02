@@ -52,37 +52,57 @@ A comprehensive script for creating Proxmox VE VM templates from cloud images (U
 - `id` - Unique VM ID number (e.g., 9000)
 - `name` - Template name (e.g., ubuntu-2404-template)
 
+**Supported Distros:**
+
+The script automatically detects the distribution from the cloud image. Supported distributions include:
+
+- **debian** - Debian (tested with Debian 13)
+- **ubuntu** - Ubuntu (tested with Ubuntu 24.04)
+- **fedora** - Fedora (tested with Fedora 43)
+- **rocky** - Rocky Linux (tested with Rocky Linux 9)
+- **redhat-based** - Red Hat-based distributions like AlmaLinux (tested with AlmaLinux 9)
+
 **Common Options:**
 
-| Option                         | Description                                   | Default                |
-| ------------------------------ | --------------------------------------------- | ---------------------- |
-| `--user <user>`                | Cloud-init username                           | (none)                 |
-| `--password <password>`        | Cloud-init password                           | (none)                 |
-| `--ssh-keys <file>`            | Path to SSH public keys file                  | (none)                 |
-| `--disk-storage <storage>`     | Proxmox storage for VM disk                   | local-lvm              |
-| `--snippets-storage <storage>` | Storage for cloud-init snippets               | same as --disk-storage |
-| `--disk-size <size>`           | Disk size (e.g., 32G, 50G)                    | (image default)        |
-| `--disk-format <format>`       | Disk format: qcow2, raw, vmdk                 | qcow2                  |
-| `--disk-flags <flags>`         | Space-separated disk flags (e.g., discard=on) | discard=on             |
-| `--memory <mb>`                | Memory in MB                                  | 2048                   |
-| `--cores <num>`                | Number of CPU cores                           | 4                      |
-| `--bridge <bridge>`            | Network bridge                                | vmbr0                  |
-| `--timezone <timezone>`        | Timezone (e.g., America/New_York)             | (none)                 |
-| `--keyboard <layout>`          | Keyboard layout (e.g., us, de, fr)            | (none)                 |
-| `--keyboard-variant <variant>` | Keyboard variant (e.g., intl)                 | (none)                 |
-| `--locale <locale>`            | Locale (e.g., en_US.UTF-8)                    | (none)                 |
-| `--display <type>`             | Set the display/vga type                      | std                    |
-| `--install <packages>`         | Space-separated packages to install           | (none)                 |
-| `--dns-servers <servers>`      | Space-separated DNS servers                   | (none)                 |
-| `--domain-names <domains>`     | Space-separated domain names for DNS search   | (none)                 |
-| `--patches <patches>`          | Space-separated patch names to apply          | (none)                 |
+| Option                         | Description                                                            | Default                |
+| ------------------------------ | ---------------------------------------------------------------------- | ---------------------- |
+| `--user <user>`                | Cloud-init username                                                    | (none)                 |
+| `--password <password>`        | Cloud-init password                                                    | (none)                 |
+| `--ssh-keys <file>`            | Path to SSH public keys file                                           | (none)                 |
+| `--disk-storage <storage>`     | Proxmox storage for VM disk                                            | local-lvm              |
+| `--snippets-storage <storage>` | Storage for cloud-init snippets                                        | same as --disk-storage |
+| `--disk-size <size>`           | Disk size (e.g., 32G, 50G)                                             | (image default)        |
+| `--disk-format <format>`       | Disk format: qcow2, raw, vmdk, subvol (support varies by storage type) | qcow2                  |
+| `--disk-flags <flags>`         | Space-separated disk flags (e.g., discard=on)                          | discard=on             |
+| `--memory <mb>`                | Memory in MB                                                           | 2048                   |
+| `--cores <num>`                | Number of CPU cores                                                    | 4                      |
+| `--bridge <bridge>`            | Network bridge                                                         | vmbr0                  |
+| `--timezone <timezone>`        | Timezone (e.g., America/New_York)                                      | (none)                 |
+| `--keyboard <layout>`          | Keyboard layout (e.g., us, de, fr)                                     | (none)                 |
+| `--keyboard-variant <variant>` | Keyboard variant (e.g., intl)                                          | (none)                 |
+| `--locale <locale>`            | Locale (e.g., en_US.UTF-8)                                             | (none)                 |
+| `--display <type>`             | Set the display/vga type                                               | std                    |
+| `--install <packages>`         | Space-separated packages to install                                    | (none)                 |
+| `--dns-servers <servers>`      | Space-separated DNS servers                                            | (none)                 |
+| `--domain-names <domains>`     | Space-separated domain names for DNS search                            | (none)                 |
+| `--patches <patches>`          | Space-separated patch names to apply                                   | (none)                 |
 
 **Patches:**
 
-- Use the `--patches` option to apply one or more "fixes" to the template.
-- Some patches are automatically applied based on the detected distro (e.g., `debian_locale`, `debian_keyboard`, `rocky_keyboard`).
+Patches are configuration "fixes" that can be applied to templates to modify their behavior or work around distro-specific issues.
 
-**Supported User Patches:**
+**Automatic Patches:**
+
+Some patches are automatically applied based on the detected distribution:
+
+| Distro       | Auto-Applied Patches                | Description                                      |
+| ------------ | ----------------------------------- | ------------------------------------------------ |
+| Debian       | `debian_locale`, `debian_keyboard`  | Fix locale and keyboard configuration via runcmd |
+| Rocky/RedHat | `patch_rocky_redhat_based_keyboard` | Configure keyboard layout using localectl        |
+
+**User Patches (via --patches option):**
+
+Use the `--patches` option to apply additional fixes manually:
 
 | Patch Name                 | Description                        |
 | -------------------------- | ---------------------------------- |
@@ -93,8 +113,8 @@ A comprehensive script for creating Proxmox VE VM templates from cloud images (U
 
 ```bash
 ID=9999
-IMAGE="https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
-IMAGE_NAME="debian13"
+IMAGE="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+IMAGE_NAME="ubuntu24"
 
 # Tested Distros
 
@@ -104,7 +124,6 @@ IMAGE_NAME="debian13"
 
 # Debian 13
 # IMAGE="https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
-# IMAGE="https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
 # IMAGE_NAME="debian13"
 
 # Fedora 43
@@ -115,11 +134,9 @@ IMAGE_NAME="debian13"
 # IMAGE="https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2"
 # IMAGE_NAME="rocky9"
 
-# Untested Distros
-
-# Alpine Linux 3
-# IMAGE="https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/cloud/nocloud_alpine-3.22.2-x86_64-bios-cloudinit-r0.qcow2"
-# IMAGE_NAME="alpine3"
+# Almalinux 9
+# IMAGE="https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
+# IMAGE_NAME="almaLinux9"
 
 ./pve-template.sh \
   "$IMAGE" \
