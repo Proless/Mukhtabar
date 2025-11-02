@@ -48,7 +48,7 @@ Choose the target disk for installation. For this setup, we will use the default
 
 > 💡If you have specific reasons or requirements, you can customize the disk partitions during installation by clicking on "Options". Refer to the [Advanced LVM Configuration Options](https://pve.proxmox.com/pve-docs/chapter-pve-installation.html#advanced_lvm_options) in the official Proxmox documentation for detailed guidance.
 
-Select your country, time zone, and preferred keyboard layout. This ensures that your system clock and input settings are correctly configured for your region.
+Select your country, time zone, and preferred keyboard layout. This ensures that the system clock and input settings are correctly configured for your region.
 
 ![Proxmox VE Installer Location and Time Zone selection](image/04_installation_screen.png "Proxmox VE Installer Location and Time Zone selection")
 
@@ -56,19 +56,19 @@ Set a strong password for the root user and confirm it. Enter an email address t
 
 ![Proxmox VE Installer Administration Password and Email Address](image/05_installation_screen.png "Proxmox VE Installer Administration Password and Email Address")
 
-Configure the hostname and domain for your Proxmox server to identify it on your local network. Assign a static IP address, gateway, and DNS server according to your network setup.
+Configure the hostname and domain for the Proxmox server to identify it on your local network. Assign a static IP address, gateway, and DNS server according to your network setup.
 
 ![Proxmox VE Installer Management Network Configuration](image/06_installation_screen.png "Proxmox VE Installer Management Network Configuration")
 
-> 💡 The Hostname you set here will be the name by which your Proxmox host is identified on your local network. In my setup, the `.lan` domain is automatically assigned to connected devices by the router.
+> 💡 The Hostname you set here will be the name by which the Proxmox host is identified on your local network. In my setup, the `.lan` domain is automatically assigned to connected devices by the router.
 
-Review all the settings and information on the summary screen to ensure they match your configuration. Once you are satisfied, click "Install" to begin the installation process.
+Review all the settings and information on the summary screen to ensure they match your configuration. Once you are done, click "Install" to begin the installation process.
 
 ![Proxmox VE Installer Summary](image/07_installation_screen.png "Proxmox VE Installer Summary")
 
 ![Proxmox VE Installer Installation](image/08_installation_screen.png "Proxmox VE Installer Installation")
 
-Once the installation is complete, the system will automatically reboot. On startup, Proxmox VE will display the IP address and port (usually `https://your-ip-address:8006`) to access the web interface. Use this address in your browser to log in and begin configuring your Proxmox environment.
+Once the installation is complete, the system will automatically reboot. On startup, Proxmox VE will display the IP address and port (usually `https://proxmox-host-ip-address:8006`) to access the web interface. Use this address in the browser to log in and begin configuring the Proxmox server.
 
 ![Proxmox VE Terminal](image/09_installation_screen.png "Proxmox VE Terminal")
 
@@ -76,7 +76,7 @@ Once the installation is complete, the system will automatically reboot. On star
 
 ### Login
 
-Log in using the username `root` and the password you set during the Proxmox VE installation. This will grant you administrative access to the web interface, where you can begin configuring and managing your virtual environment.
+Log in using the username `root` and the password you set during the Proxmox VE installation. This will grant you administrative access to the web interface, where you can begin configuring and managing the proxmox server.
 
 ![Proxmox VE Login](image/pve_login.png "Proxmox VE Login")
 
@@ -87,7 +87,7 @@ Log in using the username `root` and the password you set during the Proxmox VE 
 
 Now that the installation is complete, it's important to update the system and adjust some initial settings. You can review the script before executing it by visiting **[View pve-init.sh](../../scripts/proxmox/pve-init.sh)**.
 
-To download and execute the script directly, select your node in the Proxmox web interface, navigate to "Shell," and run the following commands:
+To download and execute the script directly, select the node in the Proxmox web interface, navigate to "Shell," and run the following commands:
 
 ```bash
 apt update
@@ -167,8 +167,8 @@ Now we need to adjust the disk layout, as LVM is not necessary for this setup. B
 1. In the Proxmox web interface, click on “Datacenter” and then select “Storage”
 2. Click on “local-lvm” and choose “Remove”
    (_Note: Removing local-lvm is safe in this fresh install_)
-3. Now, select “local” from the storage list and click "Edit." In the "Content" drop-down menu, select all available options to allow the storage to handle various types of data (e.g., Disk images, backups, containers, etc.). Confirm your changes by clicking "OK"
-4. After removal of “local-lvm”, click on your node and open the “Shell”
+3. Now, select “local” from the storage list and click "Edit." In the "Content" drop-down menu, select all available options to allow the storage to handle various types of data (e.g., Disk images, backups, containers, etc.). Confirm the changes by clicking "OK"
+4. After removal of “local-lvm”, click on the node and open the “Shell”
 5. Run the following commands to remove the LVM data volume and expand the root volume:
 
    ```bash
@@ -177,7 +177,7 @@ Now we need to adjust the disk layout, as LVM is not necessary for this setup. B
    resize2fs /dev/mapper/pve-root
    ```
 
-Once completed, your “local” storage should increase to the maximum size available on your hard drive.
+Once completed, the “local” storage should increase to the maximum size available on the hard drive.
 
 ![Proxmox VE Storage](image/pve_storage.png "Proxmox VE Storage")
 
@@ -205,7 +205,7 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    source /etc/network/interfaces.d/*
    ```
 
-   > 💡 Make a note of your network interface name (e.g., `enp1s0`). The interface name may vary depending on your hardware and installation. Replace `enp1s0` in the configuration examples with the actual name of your network interface
+   > 💡 Make a note of the network interface name (e.g., `enp1s0`). The interface name may vary depending on your hardware and installation. Replace `enp1s0` in the configuration examples with the actual name of the network interface
 
 3. Replace the content with the following configuration to add two more interfaces for the OPNsense VM. You can set `vmbr0` to use DHCP for portability, allowing "plug and play" in any network with a properly configured router.
 
@@ -248,7 +248,7 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    source /etc/network/interfaces.d/*
    ```
 
-   > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout your setup. Additional network adjustments may be required, which will be covered in a future guide.
+   > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout the setup process. Additional network adjustments may be required, which will be covered in a future guide.
 
 4. Save and exit the editor.
 5. Reboot the system to apply the new network configuration
