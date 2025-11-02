@@ -16,7 +16,7 @@ set -e
 IMAGE_FILE=""
 
 # Script constants
-declare -a SUPPORTED_DISTROS=("alpinelinux" "debian" "ubuntu" "fedora" "rocky")
+declare -a SUPPORTED_DISTROS=("debian" "ubuntu" "fedora" "rocky" "redhat-based")
 
 # Storage configuration
 declare -A DISK_STORAGE_CONFIG=()
@@ -158,10 +158,6 @@ ci_add_qemu_guest_agent() {
             yq -i -y ".runcmd += [\"systemctl enable qemu-guest-agent\"]" "$vendor_data_file"
             yq -i -y ".runcmd += [\"systemctl start qemu-guest-agent\"]" "$vendor_data_file"
             ;;
-        alpinelinux)
-            yq -i -y ".runcmd += [\"rc-update add qemu-guest-agent default\"]" "$vendor_data_file"
-            yq -i -y ".runcmd += [\"rc-service qemu-guest-agent start\"]" "$vendor_data_file"
-            ;;
     esac
 }
 
@@ -252,9 +248,6 @@ patch_enable_ssh_password_auth() {
         fedora|rocky)
             yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$vendor_data_file"
             ;;
-        alpinelinux)
-            yq -i -y ".runcmd += [\"rc-service sshd restart\"]" "$vendor_data_file"
-            ;;
     esac
 }
 
@@ -272,13 +265,10 @@ patch_enable_ssh_root_login() {
         fedora|rocky)
             yq -i -y ".runcmd += [\"systemctl restart sshd\"]" "$vendor_data_file"
             ;;
-        alpinelinux)
-            yq -i -y ".runcmd += [\"rc-service sshd restart\"]" "$vendor_data_file"
-            ;;
     esac
 }
 
-patch_rocky_keyboard() {
+patch_rocky_redhat_based_keyboard() {
     local vendor_data_file="$1"
     
     # Remove the keyboard section from the YAML file
@@ -295,7 +285,7 @@ apply_patches() {
     # Add custom patches based on the distro
     case "$DISTRO" in
         debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard" ;;
-        rocky)      PATCHES_TO_APPLY+=" rocky_keyboard" ;;
+        rocky|redhat-based)      PATCHES_TO_APPLY+=" patch_rocky_redhat_based_keyboard" ;;
     esac
 
     IFS=' ' read -ra patches_array <<< "$PATCHES_TO_APPLY"
