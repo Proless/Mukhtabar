@@ -277,7 +277,7 @@ Once you have verified the configuration, continue by clicking `Next` through th
 
 When you reach the end of the wizard, click `Apply` to save your configuration and complete the initial setup.
 
-> **Note:** After applying the configuration, OPNsense will automatically re-enable the firewall, which may block your current access to the Web UI via the WAN interface. This is a security feature to prevent unauthorized access.
+> 💡 After applying the configuration, OPNsense will automatically re-enable the firewall, which may block your current access to the Web UI via the WAN interface. This is a security feature to prevent unauthorized access.
 
 To regain access for final adjustments, return to the OPNsense console and temporarily disable the firewall filter again by running `pfctl -d`. This will allow you to continue configuring OPNsense through the Web UI. Remember, this step is only necessary during initial setup.
 
@@ -303,7 +303,7 @@ To ensure you can access the Web UI via the WAN address before configuring a LAN
 
 This rule ensures that you can access the OPNsense Web UI from your network, even before the LAN interface is configured.
 
-In this setup, the WAN interface connection (`vmbr0`) is the private network (e.g., home network) that the Proxmox host is connected to, so allowing Web UI access via WAN is acceptable. However, if the connection (`vmbr0`) is assigned a true public IP address, you should remove this rule after configuring the LAN interface and configuring a VPN (ex. Wireguard) to prevent exposing the OPNsense Web UI to the internet.
+> 💡 In this setup, the WAN interface connection (`vmbr0`) is the private network (e.g., home network) that the Proxmox host is connected to, so allowing Web UI access via WAN is acceptable. However, if the connection (`vmbr0`) is assigned a true public IP address, you should remove this rule after configuring the LAN interface and configuring a VPN (ex. Wireguard) to prevent exposing the OPNsense Web UI to the internet.
 
 #### Web UI Port
 
