@@ -248,6 +248,28 @@ To fit our setup and goals, we need to configure the network interfaces in Proxm
    source /etc/network/interfaces.d/*
    ```
 
+   #### Static IP Configuration for vmbr0
+
+   If you want the Proxmox host to have a static IP address (similar to what you might get from a cloud provider), update the `vmbr0` section as shown below. This is useful for servers that require a fixed address or when DHCP is not available.
+
+   Replace `<IP>` with the static IP address and `<Gateway-IP>` with the network's gateway.
+
+   ```bash
+   auto vmbr0
+   iface vmbr0 inet static
+      address <IP>
+      gateway <Gateway-IP>
+      pointopoint <Gateway-IP>
+      bridge-ports enp1s0
+      bridge-stp off
+      bridge-fd 0
+      post-up echo 1 > /proc/sys/net/ipv4/ip_forward
+      post-up iptables -t nat -A PREROUTING -i vmbr0 -p tcp -m multiport ! --dport 22,8006 -j DNAT --to 172.16.1.1
+      post-up iptables -t nat -A PREROUTING -i vmbr0 -p udp -m multiport ! --dport 22,8006 -j DNAT --to 172.16.1.1
+      post-down iptables -t nat -D PREROUTING -i vmbr0 -p tcp -m multiport ! --dport 22,8006 -j DNAT --to 172.16.1.1
+      post-down iptables -t nat -D PREROUTING -i vmbr0 -p udp -m multiport ! --dport 22,8006 -j DNAT --to 172.16.1.1
+   ```
+
    > 💡 Ensure your local network subnet does not conflict with the `172.16.1.0/24` subnet used here. If you choose a different subnet, remember to update all related configurations throughout the setup process. Additional network adjustments may be required, which will be covered in a future guide.
 
 4. Save and exit the editor.
