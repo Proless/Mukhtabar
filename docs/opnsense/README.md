@@ -301,9 +301,9 @@ To ensure you can access the Web UI via the WAN address before configuring a LAN
 
 ![OPNsense Web UI WAN Rule](image/opnsense_webui_wan_rule.png "OPNsense Web UI WAN Rule")
 
-This rule ensures that you can reliably access the OPNsense Web UI from your Proxmox host or any management workstation on your network, even before the LAN interface is configured.
+This rule ensures that you can access the OPNsense Web UI from your network, even before the LAN interface is configured.
 
-In this setup, the WAN interface is the private network (e.g., home network) that the Proxmox host is connected to, so allowing Web UI access via WAN is acceptable. However, if the WAN interface is assigned a true public IP address, you should remove or restrict this rule after configuring the LAN interface to prevent exposing the OPNsense Web UI to the internet.
+In this setup, the WAN interface connection (`vmbr0`) is the private network (e.g., home network) that the Proxmox host is connected to, so allowing Web UI access via WAN is acceptable. However, if the connection (`vmbr0`) is assigned a true public IP address, you should remove this rule after configuring the LAN interface and configuring a VPN (ex. Wireguard) to prevent exposing the OPNsense Web UI to the internet.
 
 #### Web UI Port
 
