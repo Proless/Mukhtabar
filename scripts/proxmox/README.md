@@ -79,7 +79,7 @@ The script automatically detects the distribution from the cloud image. Supporte
 | `--bridge <bridge>`            | Network bridge                                                         | vmbr0                  |
 | `--timezone <timezone>`        | Timezone (e.g., America/New_York)                                      | (none)                 |
 | `--keyboard <layout>`          | Keyboard layout (e.g., us, de, fr)                                     | (none)                 |
-| `--keyboard-variant <variant>` | Keyboard variant (e.g., intl)                                          | (none)                 |
+| `--keyboard-variant <variant>` | Keyboard variant (e.g., intl, nodeadkeys)                              | (none)                 |
 | `--locale <locale>`            | Locale (e.g., en_US.UTF-8)                                             | (none)                 |
 | `--display <type>`             | Set the display/vga type                                               | std                    |
 | `--install <packages>`         | Space-separated packages to install                                    | (none)                 |
@@ -95,10 +95,10 @@ Patches are configuration "fixes" that can be applied to templates to modify the
 
 Some patches are automatically applied based on the detected distribution:
 
-| Distro       | Auto-Applied Patches                | Description                                      |
-| ------------ | ----------------------------------- | ------------------------------------------------ |
-| Debian       | `debian_locale`, `debian_keyboard`  | Fix locale and keyboard configuration via runcmd |
-| Rocky/RedHat | `patch_rocky_redhat_based_keyboard` | Configure keyboard layout using localectl        |
+| Distro       | Auto-Applied Patches                | Description                               |
+| ------------ | ----------------------------------- | ----------------------------------------- |
+| Debian       | `debian_locale`, `debian_keyboard`  | Fix locale and keyboard configuration     |
+| Rocky/RedHat | `patch_rocky_redhat_based_keyboard` | Configure keyboard layout using localectl |
 
 **User Patches (via --patches option):**
 
@@ -111,37 +111,41 @@ Use the `--patches` option to apply additional fixes manually:
 
 **Usage Examples:**
 
+### Tested Distributions
+
+| Distro        | Image URL                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Ubuntu 24     | <https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img>                                                     |
+| Debian 13     | <https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2>                                          |
+| Fedora 43     | <https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2> |
+| Rocky Linux 9 | <https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2>                                      |
+| AlmaLinux 9   | <https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2>                           |
+| CentOS 9      | <https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2>                           |
+
+---
+
+### Quick Start Example
+
+```bash
+ID=9000
+NAME="ubuntu24"
+IMAGE="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"  # See table above for other distros
+
+./pve-template.sh "$IMAGE" $ID "$NAME-template" \
+  --user myuser \
+  --ssh-keys ~/.ssh/authorized_keys
+```
+
+---
+
+### Full Example (with comments)
+
 ```bash
 ID=9999
-IMAGE="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-IMAGE_NAME="ubuntu24"
+NAME="ubuntu24"
+IMAGE="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"  # Ubuntu 24.04 LTS
 
-# Tested Distros
-
-# Ubuntu 24
-# IMAGE="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-# IMAGE_NAME="ubuntu24"
-
-# Debian 13
-# IMAGE="https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
-# IMAGE_NAME="debian13"
-
-# Fedora 43
-# IMAGE="https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
-# IMAGE_NAME="fedora43"
-
-# Rocky Linux 9
-# IMAGE="https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2"
-# IMAGE_NAME="rocky9"
-
-# Almalinux 9
-# IMAGE="https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
-# IMAGE_NAME="almaLinux9"
-
-./pve-template.sh \
-  "$IMAGE" \
-  $ID \
-  "$IMAGE_NAME-template" \
+./pve-template.sh "$IMAGE" $ID "$NAME-template" \
   --user myuser \
   --password mypass \
   --ssh-keys ~/.ssh/authorized_keys \
