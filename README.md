@@ -6,17 +6,17 @@ A portable, small-scale, and opinionated computing environment designed for hand
 
 The Mukhtabar environment consists of several main components that form the foundation:
 
-- **Hypervisor Host**
+- **Hypervisor**
 
   The physical hardware running Proxmox VE. For this setup, a Dell OptiPlex 3060 Micro is used, equipped with an Intel Core i5-8500T processor (6 cores, 6 threads), 64 GB DDR4 memory, a 1 TB SATA SSD (used for the operating system and storage), and a Realtek RTL8111HSD-CG Gigabit Ethernet port. These specifications provide sufficient resources for running Proxmox VE and hosting multiple virtual machines and containers, making the environment suitable for a wide range of homelab and learning scenarios.
 
-- **OPNsense Firewall & Networking**
+- **Firewall & Networking**
 
   The virtualized OPNsense firewall acts as the main gateway for all incoming traffic, except for ports 8006 (Proxmox GUI) and 22 (SSH), which remain accessible for management. It routes all virtual machines and containers running on Proxmox, using two Linux bridges for LAN and WAN connectivity. A point-to-point connection between the WAN interface and the host bridge closely resembles a cloud server setup with a single public IP. While this approach is not ideal for every scenario, it fulfills the goal of creating a portable computing environment.
 
   OPNsense manages the entire virtual LAN, providing DHCP and DNS services for all connected systems. VLANs are configured to segment the network, offering isolation and security for different services such as management, storage, and applications. OPNsense also handles IP assignment, DNS resolution, and inter-VLAN routing. Additionally, it provides load balancing and reverse proxy functionality using integrated HAProxy and Nginx.
 
-- **GitLab Community Edition**
+- **Git Platform**
 
   GitLab serves as the main source of truth for the infrastructure, acting as the central platform for managing code, configuration, and automation. It enables you to implement GitOps workflows for deployment, configuration, and operational tasks using its powerful built-in CI/CD engine. With GitLab, you can version control your Infrastructure as Code (IaC), automate deployments, and coordinate DevOps processes across the entire environment.
 
