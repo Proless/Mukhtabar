@@ -211,7 +211,7 @@ patch_debian_locale() {
     # Remove the locale section from the YAML file
     yq -i -y "del(.locale)" "$vendor_data_file"
     # Add shell commands to runcmd for locale setup
-    yq -i -y ".runcmd += [\"sed -i -E \\\"s/^# *\\\\(${LOCALE_CONFIG[locale]}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$vendor_data_file"
+    yq -i -y ".runcmd += [\"sed -i \\\"s/^# *\\\\(${LOCALE_CONFIG[locale]}\\\\)/\\\\1/\\\" /etc/locale.gen\"]" "$vendor_data_file"
     yq -i -y ".runcmd += [\"grep -q \\\"^${LOCALE_CONFIG[locale]}\\\" /etc/locale.gen || echo \\\"${LOCALE_CONFIG[locale]}\\\" >> /etc/locale.gen\"]" "$vendor_data_file"
     yq -i -y ".runcmd += [\"locale-gen\"]" "$vendor_data_file"
     yq -i -y ".runcmd += [\"update-locale LANG=\\\"${LOCALE_CONFIG[locale]}\\\"\"]" "$vendor_data_file"
