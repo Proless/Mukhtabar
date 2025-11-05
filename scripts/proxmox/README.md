@@ -95,10 +95,10 @@ Patches are configuration "fixes" that can be applied to templates to modify the
 
 Some patches are automatically applied based on the detected distribution:
 
-| Distro       | Auto-Applied Patches                             | Description                                                                    |
-| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Debian       | `debian_locale`, `debian_keyboard`, `debian_dns` | Fix locale and keyboard configuration, configure systemd-resolved DNS settings |
-| Rocky/RedHat | `redhat_based_keyboard`                          | Configure keyboard layout using localectl                                      |
+| Distro       | Auto-Applied Patches               | Description                               |
+| ------------ | ---------------------------------- | ----------------------------------------- |
+| Debian       | `debian_locale`, `debian_keyboard` | Fix locale and keyboard configuration     |
+| Rocky/RedHat | `redhat_based_keyboard`            | Configure keyboard layout using localectl |
 
 **User Patches (via --patches option):**
 
