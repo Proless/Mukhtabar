@@ -312,7 +312,7 @@ apply_patches() {
 
     # Add custom patches based on the distro
     case "$DISTRO" in
-        debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard patch_debian_dns" ;;
+        debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard debian_dns" ;;
         rocky|centos|redhat-based)      PATCHES_TO_APPLY+=" patch_redhat_based_keyboard" ;;
     esac
 
