@@ -116,6 +116,7 @@ Use the `--patches` option to apply additional fixes manually:
 | Distro        | Image URL                                                                                                                           |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Ubuntu 24     | <https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img>                                                     |
+| Debian 12     | <https://cdimage.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2>                                        |
 | Debian 13     | <https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2>                                          |
 | Fedora 43     | <https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2> |
 | Rocky Linux 9 | <https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2>                                      |
