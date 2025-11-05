@@ -234,6 +234,34 @@ patch_debian_keyboard() {
     yq -i -y ".runcmd += [\"setupcon\"]" "$vendor_data_file"
 }
 
+patch_debian_dns() {
+    local vendor_data_file="$1"
+    
+    # Only apply if domain names or DNS servers are specified
+    if [[ -z "${NETWORK_CONFIG[domain_names]}" && -z "${NETWORK_CONFIG[dns_servers]}" ]]; then
+        return
+    fi
+    
+    # Build the command to configure systemd-resolved
+    local cmd="if [ -f /etc/systemd/resolved.conf ]; then"
+    
+    # Add DNS server configuration if specified
+    if [[ -n "${NETWORK_CONFIG[dns_servers]}" ]]; then
+        cmd+=" sed -i \\\"s/^#\\\\?DNS=.*/DNS=${NETWORK_CONFIG[dns_servers]}/\\\" /etc/systemd/resolved.conf;"
+    fi
+    
+    # Add search domains configuration if specified
+    if [[ -n "${NETWORK_CONFIG[domain_names]}" ]]; then
+        cmd+=" sed -i \\\"s/^#\\\\?Domains=.*/Domains=${NETWORK_CONFIG[domain_names]}/\\\" /etc/systemd/resolved.conf;"
+    fi
+    
+    # Add restart command and close the if block
+    cmd+=" systemctl restart systemd-resolved; fi"
+    
+    # Add the complete command to runcmd
+    yq -i -y ".runcmd += [\"$cmd\"]" "$vendor_data_file"
+}
+
 patch_enable_ssh_password_auth() {
     local vendor_data_file="$1"
     
@@ -284,7 +312,7 @@ apply_patches() {
 
     # Add custom patches based on the distro
     case "$DISTRO" in
-        debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard" ;;
+        debian)     PATCHES_TO_APPLY+=" debian_locale debian_keyboard patch_debian_dns" ;;
         rocky|centos|redhat-based)      PATCHES_TO_APPLY+=" patch_redhat_based_keyboard" ;;
     esac
 
